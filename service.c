@@ -1,5 +1,7 @@
 #include "rfos.h"
+#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 char * diskFileName[4];
 
@@ -49,6 +51,53 @@ static void on_name_acquired (GDBusConnection *connection,
         NULL);
 }
 
+char * readFile(char * fileName){
+  FILE * fileptr;
+  char * buffer;
+  long filelen;
+
+  fileptr = fopen(fileName,"rb");  // Open file in binary
+  fseek(fileptr,0,SEEK_END); // Seek file to the end
+  filelen = ftell(fileptr); // Get number of current byte offset
+  rewind(fileptr); // Junp to begin
+
+  buffer = (char *) malloc((filelen+1)*sizeof(char)); // Allocation memory for read file
+  // TODO : Avoid allocate ahead (allocate only need)
+  fread(buffer,filelen,1,fileptr); // Read entire file // TODO what all this param?
+  fclose(fileptr); // close file
+  return buffer;
+}
+
+void printFileData(char * fileData){
+  char * ptr=fileData;
+  long filelen = strlen(fileData); 
+  int i;
+  for( i=0;i<filelen;i++){
+    printf("%d\t",*(ptr));
+    ptr++;
+  }
+  printf("\n");
+}
+
+void writeFile(char * filename,char * fileData){
+  FILE * writeptr;
+  writeptr = fopen(filename,"wb");
+  fwrite(fileData,strlen(fileData),1,writeptr);
+  fclose(writeptr);
+
+}
+
+void testFileCopy(){
+  char * fileData = readFile("myfile");
+
+  //----Show and write file---
+  printFileData(fileData);
+
+  writeFile("myout",fileData);
+}
+
+
+// TODO : Initiate disk in a first time of use
 void formatDisk(int diskNo){
 
 }
@@ -78,6 +127,8 @@ int main (int argc,char* argv[])
 
   checkDisk(argc,argv);
 
+  // TODO : For test purpose
+  testFileCopy();
 
   printf("RFOS Ready\n");
   //-------------------------------------------------------------------------
