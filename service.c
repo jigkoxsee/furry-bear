@@ -61,6 +61,8 @@ char * readFile(char * fileName){
   filelen = ftell(fileptr); // Get number of current byte offset
   rewind(fileptr); // Junp to begin
 
+  printf("filelen : %lu\n",filelen);
+
   buffer = (char *) malloc((filelen+1)*sizeof(char)); // Allocation memory for read file
   // TODO : Avoid allocate ahead (allocate only need)
   fread(buffer,filelen,1,fileptr); // Read entire file // TODO what all this param?
@@ -70,7 +72,7 @@ char * readFile(char * fileName){
 
 void printFileData(char * fileData){
   char * ptr=fileData;
-  long filelen = strlen(fileData); 
+  long filelen = sizeof(fileData); // TODO : Problem when it have 1,2,3 byte it will return number of bytes
   int i;
   for( i=0;i<filelen;i++){
     printf("%d\t",*(ptr));
