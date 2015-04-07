@@ -81,6 +81,16 @@ void printFileData(char * fileData){
   printf("\n");
 }
 
+void editFile(char * filename,char * data, long byteOffset,long size){
+  FILE * writeptr;
+  writeptr = fopen(filename,"rb+");
+  fseek ( writeptr, byteOffset, SEEK_SET );
+  //fwrite(fileData,strlen(fileData),1,writeptr);
+  fwrite(data,size,1,writeptr);
+  fclose(writeptr);
+
+}
+
 void writeFile(char * filename,char * fileData){
   FILE * writeptr;
   writeptr = fopen(filename,"wb");
@@ -131,6 +141,7 @@ int main (int argc,char* argv[])
 
   // TODO : For test purpose
   testFileCopy();
+  editFile("myfile","a",2,1);
 
   printf("RFOS Ready\n");
   //-------------------------------------------------------------------------
