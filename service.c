@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 
 char * diskFileName[4];
 
@@ -54,14 +55,14 @@ static void on_name_acquired (GDBusConnection *connection,
 char * readFile(char * fileName){
   FILE * fileptr;
   char * buffer;
-  long filelen;
+  long long filelen;
 
   fileptr = fopen(fileName,"rb");  // Open file in binary
   fseek(fileptr,0,SEEK_END); // Seek file to the end
   filelen = ftell(fileptr); // Get number of current byte offset
   rewind(fileptr); // Junp to begin
 
-  printf("filelen : %lu\n",filelen);
+  printf("filelen : %lld\n",filelen);
 
   buffer = (char *) malloc((filelen+1)*sizeof(char)); // Allocation memory for read file
   // TODO : Avoid allocate ahead (allocate only need)
@@ -72,7 +73,7 @@ char * readFile(char * fileName){
 
 void printFileData(char * fileData){
   char * ptr=fileData;
-  long filelen = sizeof(fileData); // TODO : Problem when it have 1,2,3 byte it will return number of bytes
+  long long filelen = sizeof(fileData); // TODO : Problem when it have 1,2,3 byte it will return number of bytes
   int i;
   for( i=0;i<filelen;i++){
     printf("%d\t",*(ptr));
@@ -81,12 +82,12 @@ void printFileData(char * fileData){
   printf("\n");
 }
 
-void editFile(char * filename,char * data, long byteOffset,long size){
+void editFile(char * filename,char * data, long long byteOffset,long size){
   FILE * writeptr;
   writeptr = fopen(filename,"rb+");
   fseek ( writeptr, byteOffset, SEEK_SET );
-  //fwrite(fileData,strlen(fileData),1,writeptr);
   fwrite(data,size,1,writeptr);
+  //fprintf(writeptr,"%s",data); // TODO didnt test
   fclose(writeptr);
 
 }
@@ -114,8 +115,30 @@ void formatDisk(int diskNo){
 
 }
 
+int getDiskSize(char * fileName){
+  FILE * fileptr;
+  long long filelen;
+  fileptr = fopen(fileName,"r");  // Open file in binary
+  fseek(fileptr,0,SEEK_END); // Seek file to the end
+  filelen = ftell(fileptr); // Get number of current byte offset
+  return filelen;
+}
+
+int checkFirstSection(char * fileName,long diskSize){
+  FILE * fileptr;
+  long long filelen;
+  char buffer[16]; // 16*4 = 64
+  fileptr = fopen(fileName,"rb");  // Open file in binary
+
+  fread(buffer,16,1,fileptr); // Read entire file // TODO what all this param?
+  filelen = atoi(buffer);
+  printf("check File: %lld",filelen);
+  return filelen==diskSize;
+}
+
 void checkDisk(int diskNo,char* diskArg[]){
   int i=0;
+  long long diskSize;
   for(i=0;i<diskNo-1;i++){
     // TODO : Detect is disk in system, format disk
     // TODO : how to deal when disk order in wrong
@@ -124,6 +147,10 @@ void checkDisk(int diskNo,char* diskArg[]){
     // TODO (BONUS) : Redistribute file
     diskFileName[i]=diskArg[i+1];
     printf("D%d : %s\n",i,diskFileName[i]);
+    // Check
+    diskSize = getDiskSize(diskFileName[i]);
+    printf("DiskSize : %lld\n",diskSize);
+    checkFirstSection(diskFileName[i],diskSize);
   }
 }
 
@@ -140,8 +167,26 @@ int main (int argc,char* argv[])
   checkDisk(argc,argv);
 
   // TODO : For test purpose
-  testFileCopy();
-  editFile("myfile","a",2,1);
+  //testFileCopy();
+  //editFile("myfile","a",2,1);
+  char numberOfDiskSize[16];
+  numberOfDiskSize[0]='0';
+  numberOfDiskSize[1]='0';
+  numberOfDiskSize[2]='0';
+  numberOfDiskSize[3]='0';
+  numberOfDiskSize[4]='0';
+  numberOfDiskSize[5]='0';
+  numberOfDiskSize[6]='1';
+  numberOfDiskSize[7]='0';
+  numberOfDiskSize[8]='7';
+  numberOfDiskSize[9]='3';
+  numberOfDiskSize[10]='7';
+  numberOfDiskSize[11]='4';
+  numberOfDiskSize[12]='1';
+  numberOfDiskSize[13]='8';
+  numberOfDiskSize[14]='2';
+  numberOfDiskSize[15]='4';
+  editFile("disk1.img",numberOfDiskSize,0,16);
 
   printf("RFOS Ready\n");
   //-------------------------------------------------------------------------
