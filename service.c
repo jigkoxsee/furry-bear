@@ -4,7 +4,13 @@
 #include <string.h>
 #include <sys/stat.h>
 
+// 1+3
+// |1|
+// 2+4
+
 char * diskFileName[4];
+FILE * diskFile[4];
+int diskCount;
 
 static gboolean on_handle_get (
     RFOS *object,
@@ -111,47 +117,61 @@ void testFileCopy(){
 
 
 // TODO : Initiate disk in a first time of use
-void formatDisk(int diskNo){
-
+void formatDisk(int diskNo,long long diskSize){
+  char numberOfDiskSize[17];
+  sprintf(numberOfDiskSize,"%llu",diskSize);
+  int strSize=strlen(numberOfDiskSize);
+  memmove(numberOfDiskSize+(16-strSize),numberOfDiskSize,strSize);
+  memset(numberOfDiskSize,'0',16-strSize);
+  numberOfDiskSize[16]='0'+diskNo;
+  printf("----%s----",numberOfDiskSize);
+  editFile(diskFileName[diskNo],numberOfDiskSize,0,17);
 }
 
-int getDiskSize(char * fileName){
-  FILE * fileptr;
+int getDiskSize(int i,char * fileName){
   long long filelen;
-  fileptr = fopen(fileName,"r");  // Open file in binary
-  fseek(fileptr,0,SEEK_END); // Seek file to the end
-  filelen = ftell(fileptr); // Get number of current byte offset
+  diskFile[i] = fopen(fileName,"rb+");  // Open file in binary
+  fseek(diskFile[i],0,SEEK_END); // Seek file to the end
+  filelen = ftell(diskFile[i]); // Get number of current byte offset
   return filelen;
 }
 
-int checkFirstSection(char * fileName,long diskSize){
-  FILE * fileptr;
+int checkFirstSection(int i,long diskSize){
   long long filelen;
   char buffer[16]; // 16*4 = 64
-  fileptr = fopen(fileName,"rb");  // Open file in binary
-
-  fread(buffer,16,1,fileptr); // Read entire file // TODO what all this param?
+  fseek ( diskFile[i], 0, SEEK_SET );
+  fread(buffer,16,1,diskFile[i]); // Read entire file // TODO what all this param?
   filelen = atoi(buffer);
-  printf("check File: %lld",filelen);
+  printf("check File: %lld\n",filelen);
+  fclose(diskFile[i]);
   return filelen==diskSize;
 }
 
-void checkDisk(int diskNo,char* diskArg[]){
+void checkDisk(char* diskArg[]){
   int i=0;
   long long diskSize;
-  for(i=0;i<diskNo-1;i++){
+  for(i=0;i<diskCount-1;i++){
     // TODO : Detect is disk in system, format disk
-    // TODO : how to deal when disk order in wrong
+    // TODO : how to deal when disk order in wrong , Add disk order number to disk header
     // TODO : Detect missing,corrupt disk
     // TODO : Detect new disk
     // TODO (BONUS) : Redistribute file
     diskFileName[i]=diskArg[i+1];
     printf("D%d : %s\n",i,diskFileName[i]);
     // Check
-    diskSize = getDiskSize(diskFileName[i]);
+    diskSize = getDiskSize(i,diskFileName[i]);
     printf("DiskSize : %lld\n",diskSize);
-    checkFirstSection(diskFileName[i],diskSize);
+    if (checkFirstSection(i,diskSize)){
+      printf("\tOK!!\n");
+    }else{
+      printf("Initiate disk\n");
+      formatDisk(i,diskSize);
+    }
   }
+}
+
+void WriteDiskSizeToHead(){
+ // editFile(diskFile,numberOfDiskSize,0,16);
 }
 
 int main (int argc,char* argv[])
@@ -163,30 +183,15 @@ int main (int argc,char* argv[])
   }
   // Check disk
   // TODO is this gonna take more than 3 min
-
-  checkDisk(argc,argv);
+  diskCount=argc;
+  checkDisk(argv);
 
   // TODO : For test purpose
   //testFileCopy();
   //editFile("myfile","a",2,1);
-  char numberOfDiskSize[16];
-  numberOfDiskSize[0]='0';
-  numberOfDiskSize[1]='0';
-  numberOfDiskSize[2]='0';
-  numberOfDiskSize[3]='0';
-  numberOfDiskSize[4]='0';
-  numberOfDiskSize[5]='0';
-  numberOfDiskSize[6]='1';
-  numberOfDiskSize[7]='0';
-  numberOfDiskSize[8]='7';
-  numberOfDiskSize[9]='3';
-  numberOfDiskSize[10]='7';
-  numberOfDiskSize[11]='4';
-  numberOfDiskSize[12]='1';
-  numberOfDiskSize[13]='8';
-  numberOfDiskSize[14]='2';
-  numberOfDiskSize[15]='4';
-  editFile("disk1.img",numberOfDiskSize,0,16);
+
+  /*
+  */
 
   printf("RFOS Ready\n");
   //-------------------------------------------------------------------------
