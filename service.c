@@ -8,9 +8,28 @@
 // |1|
 // 2+4
 
+// Free
+// 0 is free, 1 is not
+//
+// TODO : Beware second disk - first 17 bytes is header (unusable)
+
+
 char * diskFileName[4];
 FILE * diskFile[4];
 int diskCount;
+
+typedef struct FCB FCB;
+struct FCB{
+  char* name;
+  gint64  accessTime; // g_date_time_to_unix()
+  int size;     // End
+};
+
+struct DIR{
+  char* name;
+  FCB* fptr;
+};
+
 
 static gboolean on_handle_get (
     RFOS *object,
@@ -61,14 +80,14 @@ static void on_name_acquired (GDBusConnection *connection,
 char * readFile(char * fileName){
   FILE * fileptr;
   char * buffer;
-  long long filelen;
+  guint64 filelen;
 
   fileptr = fopen(fileName,"rb");  // Open file in binary
   fseek(fileptr,0,SEEK_END); // Seek file to the end
   filelen = ftell(fileptr); // Get number of current byte offset
   rewind(fileptr); // Junp to begin
 
-  printf("filelen : %lld\n",filelen);
+  printf("filelen : %" G_GUINT64_FORMAT "\n",filelen);
 
   buffer = (char *) malloc((filelen+1)*sizeof(char)); // Allocation memory for read file
   // TODO : Avoid allocate ahead (allocate only need)
@@ -77,18 +96,7 @@ char * readFile(char * fileName){
   return buffer;
 }
 
-void printFileData(char * fileData){
-  char * ptr=fileData;
-  long long filelen = sizeof(fileData); // TODO : Problem when it have 1,2,3 byte it will return number of bytes
-  int i;
-  for( i=0;i<filelen;i++){
-    printf("%d\t",*(ptr));
-    ptr++;
-  }
-  printf("\n");
-}
-
-void editFile(char * filename,char * data, long long byteOffset,long size){
+void editFile(char * filename,char * data, guint64 byteOffset,guint64 size){
   FILE * writeptr;
   writeptr = fopen(filename,"rb+");
   fseek ( writeptr, byteOffset, SEEK_SET );
@@ -106,20 +114,11 @@ void writeFile(char * filename,char * fileData){
 
 }
 
-void testFileCopy(){
-  char * fileData = readFile("myfile");
-
-  //----Show and write file---
-  printFileData(fileData);
-
-  writeFile("myout",fileData);
-}
-
 
 // TODO : Initiate disk in a first time of use
-void formatDisk(int diskNo,long long diskSize){
+void formatDisk(int diskNo,guint64 diskSize){
   char numberOfDiskSize[17];
-  sprintf(numberOfDiskSize,"%llu",diskSize);
+  sprintf(numberOfDiskSize,"%"G_GUINT64_FORMAT "",diskSize);
   int strSize=strlen(numberOfDiskSize);
   memmove(numberOfDiskSize+(16-strSize),numberOfDiskSize,strSize);
   memset(numberOfDiskSize,'0',16-strSize);
@@ -129,27 +128,27 @@ void formatDisk(int diskNo,long long diskSize){
 }
 
 int getDiskSize(int i,char * fileName){
-  long long filelen;
+  guint64 filelen;
   diskFile[i] = fopen(fileName,"rb+");  // Open file in binary
   fseek(diskFile[i],0,SEEK_END); // Seek file to the end
   filelen = ftell(diskFile[i]); // Get number of current byte offset
   return filelen;
 }
 
-int checkFirstSection(int i,long diskSize){
-  long long filelen;
+int checkFirstSection(int i, guint64 diskSize){
+  guint64 filelen;
   char buffer[16]; // 16*4 = 64
   fseek ( diskFile[i], 0, SEEK_SET );
   fread(buffer,16,1,diskFile[i]); // Read entire file // TODO what all this param?
   filelen = atoi(buffer);
-  printf("check File: %lld\n",filelen);
+  printf("check File: %" G_GUINT64_FORMAT "\n",filelen);
   fclose(diskFile[i]);
   return filelen==diskSize;
 }
 
 void checkDisk(char* diskArg[]){
   int i=0;
-  long long diskSize;
+  guint64 diskSize;
   for(i=0;i<diskCount-1;i++){
     // TODO : Detect is disk in system, format disk
     // TODO : how to deal when disk order in wrong , Add disk order number to disk header
@@ -160,7 +159,7 @@ void checkDisk(char* diskArg[]){
     printf("D%d : %s\n",i,diskFileName[i]);
     // Check
     diskSize = getDiskSize(i,diskFileName[i]);
-    printf("DiskSize : %lld\n",diskSize);
+    printf("DiskSize : %" G_GUINT64_FORMAT "\n",diskSize);
     if (checkFirstSection(i,diskSize)){
       printf("\tOK!!\n");
     }else{
@@ -168,10 +167,6 @@ void checkDisk(char* diskArg[]){
       formatDisk(i,diskSize);
     }
   }
-}
-
-void WriteDiskSizeToHead(){
- // editFile(diskFile,numberOfDiskSize,0,16);
 }
 
 int main (int argc,char* argv[])
