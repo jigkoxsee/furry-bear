@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <error.h>
 
 // 1+3
 // |1|
@@ -11,7 +12,7 @@
 // Free
 // 0 is free, 1 is not
 //
-// TODO : Beware second disk - first 17 bytes is header (unusable)
+// TODO : (For RAID 10/01) Beware second disk - first 17 bytes is header (unusable)
 
 
 char * diskFileName[4];
@@ -25,7 +26,7 @@ struct FCB{
   int size;     // End
 };
 
-struct DIR{
+struct FMAP{
   char* name;
   FCB* fptr;
 };
@@ -233,21 +234,19 @@ void checkDisk(char* diskArg[]){
 int main (int argc,char* argv[])
 {
   printf("Disk count : %d\n",argc-1);
+  /*
   if(argc<3){
     printf("Error need 2+ disk\n");
     return 1;
   }
+  */
+
   // Check disk
   // TODO is this gonna take more than 3 min
   diskCount=argc;
   checkDisk(argv);
 
   // TODO : For test purpose
-  //testFileCopy();
-  //editFile("myfile","a",2,1);
-
-  /*
-  */
 
   printf("RFOS Ready\n");
   //-------------------------------------------------------------------------
