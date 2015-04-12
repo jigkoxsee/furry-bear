@@ -30,6 +30,15 @@ struct DIR{
   FCB* fptr;
 };
 
+// TODO : Free check
+// TODO : Free search (size)
+// TODO : Free allocate
+
+
+// TODO : MAP
+//
+// TODO : FCB
+// TODO : 
 
 static gboolean on_handle_get (
     RFOS *object,
@@ -40,6 +49,8 @@ static gboolean on_handle_get (
     /** Your Code for Get method here **/
     guint err = 0;
     /** End of Get method execution, returning values **/
+    printf("GET: %s TO %s\n",key,outpath);
+
     rfos_complete_get(object, invocation, err);
     return TRUE;
 }
@@ -53,13 +64,55 @@ static gboolean on_handle_put (
     /** Your code for Put method here **/
     guint err = 0;
     /** End of Put method execution, returning values **/
-    fprintf(stderr,"hello get!\n");
+    printf("PUT: %s FROM %s\n",key,src);
 
     rfos_complete_put(object, invocation, err);
 
     return TRUE;
 }
 
+static gboolean on_handle_remove (
+    RFOS *object,
+    GDBusMethodInvocation *invocation,
+    const gchar *key) {
+
+    /** Your Code for Get method here **/
+    guint err = 0;
+    /** End of Get method execution, returning values **/
+    printf("REMOVE: %s\n",key);
+
+    rfos_complete_get(object, invocation, err);
+    return TRUE;
+}
+
+static gboolean on_handle_search (
+    RFOS *object,
+    GDBusMethodInvocation *invocation,
+    const gchar *key,
+    const gchar *outpath) {
+
+    /** Your Code for Get method here **/
+    guint err = 0;
+    /** End of Get method execution, returning values **/
+    printf("SEARCH: %s\n",key);
+
+    rfos_complete_get(object, invocation, err);
+    return TRUE;
+}
+
+static gboolean on_handle_stat ( // TODO : how to return atime and size
+    RFOS *object,
+    GDBusMethodInvocation *invocation,
+    const gchar *key) {
+
+    /** Your Code for Get method here **/
+    guint err = 0;
+    /** End of Get method execution, returning values **/
+    printf("STAT: %s\n",key);
+
+    rfos_complete_get(object, invocation, err);
+    return TRUE;
+}
 static void on_name_acquired (GDBusConnection *connection,
     const gchar *name,
     gpointer user_data)
@@ -69,7 +122,13 @@ static void on_name_acquired (GDBusConnection *connection,
     /* Bind method invocation signals with the appropriate function calls */
     g_signal_connect (skeleton, "handle-get", G_CALLBACK (on_handle_get), NULL);
     g_signal_connect (skeleton, "handle-put", G_CALLBACK (on_handle_put), NULL);
+
     //TODO is this all Command? remove,search,stat
+    
+    g_signal_connect (skeleton, "handle-remove", G_CALLBACK (on_handle_remove), NULL);
+    g_signal_connect (skeleton, "handle-search", G_CALLBACK (on_handle_search), NULL);
+    g_signal_connect (skeleton, "handle-stat", G_CALLBACK (on_handle_stat), NULL);
+
     /* Export the RFOS service on the connection as /kmitl/ce/os/RFOS object  */
     g_dbus_interface_skeleton_export (G_DBUS_INTERFACE_SKELETON (skeleton),
         connection,
@@ -77,6 +136,8 @@ static void on_name_acquired (GDBusConnection *connection,
         NULL);
 }
 
+
+// TODO : Read entire file by stream (avoid allocate large memory"
 char * readFile(char * fileName){
   FILE * fileptr;
   char * buffer;
