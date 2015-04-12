@@ -53,9 +53,10 @@ static gboolean on_handle_put (
     const gchar *src) {
 
     /** Your code for Put method here **/
+    printf("PUT: %s FROM %s\n",key,src);
+    myPut(key,src);
     guint err = 0;
     /** End of Put method execution, returning values **/
-    printf("PUT: %s FROM %s\n",key,src);
 
     rfos_complete_put(object, invocation, err);
 

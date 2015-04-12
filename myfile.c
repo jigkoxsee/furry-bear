@@ -1,3 +1,6 @@
+#ifndef MYFILE_C
+#define MYFILE_C
+
 #include <stdio.h>
 #include <glib.h>
 
@@ -14,11 +17,6 @@ struct FMAP{
   char* name;
   FCB* fptr;
 };
-
-void MyFilePut(){
-}
-void MyFileGet(){
-}
 
 char * readFileN(char * fileName,guint offset,guint size){
   FILE * fileptr;
@@ -71,3 +69,5 @@ void writeFile(char * filename,char * fileData){
   fclose(writeptr);
 
 }
+
+#endif

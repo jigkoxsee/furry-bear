@@ -1,7 +1,11 @@
+#ifndef MYFS_C
+#define MYFS_C
+
 #include <stdio.h>
 #include <glib.h>
-#include "freespace.c"
 #include "myfile.c"
+#include "mydisk.c"
+#include "freespace.c"
 
 extern char * diskFileName[4];
 extern FILE * diskFile[4];
@@ -42,6 +46,7 @@ void formatDisk(int diskNo,guint64 diskSize){
   printf("----%s----",numberOfDiskSize);
   editFile(diskFileName[diskNo],numberOfDiskSize,0,17);
 }
+
 
 int getDiskSize(int i,char * fileName){
   guint64 filelen;
@@ -84,3 +89,25 @@ void checkDisk(char* diskArg[]){
     }
   }
 }
+
+gint getFileSize(FILE *ptr){
+  guint filelen;
+  fseek(ptr,0,SEEK_END); // Seek file to the end
+  filelen = ftell(ptr); // Get number of current byte offset
+  return filelen;
+}
+
+guint myPut(const gchar *key,const gchar *src){
+  FILE *filePTR;
+  filePTR = fopen(src,"rb");  // Open file in binary
+  guint fileSize=getFileSize(filePTR);
+  printf(">> %d\n",fileSize);
+  // Find freeSpace
+  FreeSpaceFind(fileSize);
+  // Insert to map
+  // Insert data to disk = allocate + write
+  return 0;
+}
+
+
+#endif
