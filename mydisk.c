@@ -5,6 +5,7 @@
 #include "myfs.c"
 #include "myfile.c"
 
+
 extern char * diskFileName[4];
 extern FILE * diskFile[4];
 extern int diskCount;
@@ -41,5 +42,12 @@ guchar* diskReadN(guint addr,guint64 size){
 }
 */
 
+// TODO return value
+// 1 success
+// 0 fail
+void diskWriteData(guint64 addr,void* data,guint size){
+  // TODO 4 disk mng
+  editFile(diskFileName[0],data,addr,size);
+}
 
 #endif

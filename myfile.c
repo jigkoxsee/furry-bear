@@ -8,7 +8,6 @@
 
 typedef struct FCB FCB;
 struct FCB{
-  char* name;
   gint64  accessTime; // g_date_time_to_unix()
   int size;     // End
 };
@@ -67,7 +66,6 @@ void writeFile(char * filename,char * fileData){
   writeptr = fopen(filename,"wb");
   fwrite(fileData,strlen(fileData),1,writeptr);
   fclose(writeptr);
-
 }
 
 #endif

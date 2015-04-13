@@ -13,13 +13,15 @@ extern int diskCount;
 extern guint64 diskSize;
 extern int diskMode;
 
-const guint addrFileCounter=17; // 4B
-const guint addrFreeSpaceVector=21; // 1/8 B
-guint addrFileMap; // 12B*N
+const guint ADDR_FILE_COUNTER=17; // 4B
+const guint ADDR_FREE_SPACE_VECTOR=21; // 1/8 B
+const guint ATIME_SIZE=4;
+guint ADDR_FILE_MAP; // 12B*N
 // Name = 8B
 // fPTR = 4B
-guint addrData; // 16B+X
-// Name = 8B
+
+// TODO : function to set this value
+guint ADDR_DATA=2000000; // 16B+X
 // Atime = 4B
 // Size = 4B
 
@@ -33,7 +35,7 @@ guint BytesArrayToGuint(guchar* buffer){
 }
 
 guint getFileCounter(){
-  guchar * buffer = readFileN(diskFileName[0],addrFileCounter,4);
+  guchar * buffer = readFileN(diskFileName[0],ADDR_FILE_COUNTER,4);
   return BytesArrayToGuint(buffer);
 }
 
@@ -102,11 +104,23 @@ guint myPut(const gchar *key,const gchar *src){
   FILE *filePTR;
   filePTR = fopen(src,"rb");  // Open file in binary
   guint fileSize=getFileSize(filePTR);
+  fclose(filePTR);
   printf(">> %d\n",fileSize);
+
   // Find freeSpace
-  FreeSpaceFind(fileSize);
-  // Insert to map
-  // Insert data to disk = allocate + write
+  guint64 addrFile=FreeSpaceFind(fileSize);
+
+  // Insert file data
+  // atime,size,data
+  guint timeUnix=(guint)g_date_time_to_unix(g_date_time_new_now_local());
+  //printf("UNIX %"G_GUINT32_FORMAT"\n",timeUnix);
+  diskWriteData(addrFile,&timeUnix,fileSize);
+
+  guchar* data=readFileN((char*)src,0,fileSize);
+
+  diskWriteData(addrFile+ATIME_SIZE,(void*)data,fileSize);
+  // Inser map
+  // mark
   return 0;
 }
 

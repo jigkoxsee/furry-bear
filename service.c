@@ -22,6 +22,9 @@
 // TODO : (For RAID 10/01) Beware second disk - first 17 bytes is header (unusable)
 
 
+guint getFileCounter();
+
+
 char * diskFileName[4];
 FILE * diskFile[4];
 int diskCount;
@@ -155,8 +158,9 @@ int main (int argc,char* argv[])
   diskCount=argc-1;
   checkDisk(argv);
 
-  guint fcounter=0;
-  editFile("disk1.img",&fcounter,addrFreeSpaceVector,4);
+  //guint fcounter=0;
+  //editFile("disk1.img",&fcounter,addrFreeSpaceVector,4);
+
   // TODO : For test purpose
   guint fCounter=getFileCounter();
   printf("\n%u\n",fCounter);
