@@ -112,11 +112,15 @@ guint myPut(const gchar *key,const gchar *src){
 
   guint realSize=(4+4+fileSize)/8;
   // Find freeSpace
+  printf("Find freespace %d\n",realSize);
   guint64 freeOffset=FreeSpaceFind(realSize);
+  if(freeOffset==-1)
+    return ENOSPC;
+    // TODO return ENOSPC if no space enough
   guint64 addrFile=ADDR_DATA+freeOffset*8;
-  // TODO return ENOSPC if no space enough
 
   // Insert file data=atime,size,data
+  printf("Insert Data\n");
   guint timeUnix=(guint)g_date_time_to_unix(g_date_time_new_now_local());
   //printf("UNIX %"G_GUINT32_FORMAT"\n",timeUnix);
   diskWriteData(addrFile,&timeUnix,ATIME_SIZE);
@@ -129,21 +133,26 @@ guint myPut(const gchar *key,const gchar *src){
   // Inser map
   // check key size ==8
   // TODO : check duplicate
+  printf("File Map add\n");
   if(strlen(key)==8){
     FMapAdd(fileCounter,key,addrFile);
   }else{
     return ENAMETOOLONG;
   }
   // Increse file counter
+  printf("Increase file counter\n");
   fileCounter+=1;
   diskWriteData(ADDR_FILE_COUNTER,&fileCounter,SIZE_SIZE);
 
   // mark
-  guchar mark=0xFF;
+  printf("Allocate freespace\n");
+  guchar mark[realSize];
   int i;
   for(i=0;i<realSize;i++){
-    diskWriteData(ADDR_FREE_SPACE_VECTOR+freeOffset+i,&mark,1);
+    mark[i]=0xFF;
   }
+  diskWriteData(ADDR_FREE_SPACE_VECTOR+freeOffset,&mark,realSize);
+  printf("Finish\n");
   return 0;
 }
 

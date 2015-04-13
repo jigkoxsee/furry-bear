@@ -64,8 +64,8 @@ static gboolean on_handle_put (
 
     /** Your code for Put method here **/
     printf("PUT: %s FROM %s\n",key,src);
-    myPut(key,src);
-    guint err = 0;
+
+    guint err = myPut(key,src);
 //    guint err = EAGAIN;
     /** End of Put method execution, returning values **/
 
@@ -157,6 +157,8 @@ int main (int argc,char* argv[])
   // TODO is this gonna take more than 3 min
   diskCount=argc-1;
   checkDisk(argv);
+  int i;
+  for(i=0;i<1000000;i++);
 
 //  guint fcounter=0;
 //  editFile("disk1.img",&fcounter,ADDR_FILE_COUNTER,4);

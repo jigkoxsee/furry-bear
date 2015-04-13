@@ -23,7 +23,7 @@ const guint FNAME_SIZE=8;
 gint64 FreeSpaceFind(guint64 realSize){
   // Calculate add Head too
   // atime,size,data
-  guint64 fsSize=1000000; // TODO
+  guint64 fsSize=100000000; // TODO
   guchar* buffer=readFileN(diskFileName[0],ADDR_FREE_SPACE_VECTOR,fsSize);
 
   // Search
@@ -41,6 +41,11 @@ gint64 FreeSpaceFind(guint64 realSize){
       count++;
     }else{
       count=0;
+    }
+    // no free space enough
+    if(i==fsSize-1){
+      printf("Error Not enough space");
+      return -1;
     }
   }
   printf(">>>%"G_GUINT64_FORMAT"@%"G_GUINT64_FORMAT" (%"G_GUINT64_FORMAT")\n",
