@@ -16,6 +16,7 @@ extern int diskMode;
 const guint ADDR_FILE_COUNTER=17; // 4B
 const guint ADDR_FREE_SPACE_VECTOR=21; // 1/8 B
 const guint ATIME_SIZE=4;
+const guint SIZE_SIZE=4;
 guint ADDR_FILE_MAP; // 12B*N
 // Name = 8B
 // fPTR = 4B
@@ -115,10 +116,11 @@ guint myPut(const gchar *key,const gchar *src){
   guint timeUnix=(guint)g_date_time_to_unix(g_date_time_new_now_local());
   //printf("UNIX %"G_GUINT32_FORMAT"\n",timeUnix);
   diskWriteData(addrFile,&timeUnix,fileSize);
-
+  // size
+  diskWriteData(addrFile+ATIME_SIZE,&fileSize,fileSize);
+  // data
   guchar* data=readFileN((char*)src,0,fileSize);
-
-  diskWriteData(addrFile+ATIME_SIZE,(void*)data,fileSize);
+  diskWriteData(addrFile+ATIME_SIZE+SIZE_SIZE,(void*)data,fileSize);
   // Inser map
   // mark
   return 0;
