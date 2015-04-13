@@ -21,7 +21,7 @@
 //
 // TODO : (For RAID 10/01) Beware second disk - first 17 bytes is header (unusable)
 
-
+// TODO TODO TODO : return EBUSY when not ready
 guint getFileCounter();
 
 
@@ -157,8 +157,7 @@ int main (int argc,char* argv[])
   // TODO is this gonna take more than 3 min
   diskCount=argc-1;
   checkDisk(argv);
-  int i;
-  for(i=0;i<1000000;i++);
+  // TODO TODO TODO - load file map into memory
 
 //  guint fcounter=0;
 //  editFile("disk1.img",&fcounter,ADDR_FILE_COUNTER,4);
