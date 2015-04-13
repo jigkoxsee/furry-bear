@@ -18,16 +18,16 @@ struct FMAP{
   FCB* fptr;
 };
 
-char * readFileN(char * fileName,guint offset,guint size){
-  FILE * fileptr;
-  char * buffer;
+guchar* readFileN(char * fileName,guint offset,guint size){
+  FILE* fileptr;
+  guchar* buffer;
 
   fileptr = fopen(fileName,"rb");  // Open file in binary
   fseek(fileptr,offset,SEEK_SET); // Seek file to the end
 
-  buffer = (char *) malloc((size)*sizeof(char)); // Allocation memory for read file
+  buffer = (guchar*) malloc((size)*sizeof(guchar)); // Allocation memory for read file
   // TODO : Avoid allocate ahead (allocate only need)
-  fread(buffer,size,1,fileptr); // Read entire file // TODO what all this param?
+  fread(buffer,size,1,fileptr); // Read file
   fclose(fileptr); // close file
   return buffer;
 }

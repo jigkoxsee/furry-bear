@@ -3,12 +3,18 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <error.h>
+#include <errno.h>
 #include "myfs.c"
 
-// 1+3
-// |1|
-// 2+4
+// RAID 1+0
+//         0
+//    -----+----
+//    |        |
+//    1        1
+//   -+-      -+-
+//  |   |    |   |
+// [A] [A]  [B] [B]
+//  0   1    2   3
 
 // Free
 // 0 is free, 1 is not
@@ -19,7 +25,8 @@
 char * diskFileName[4];
 FILE * diskFile[4];
 int diskCount;
-
+guint64 diskSize;
+int diskMode=1;
 
 // TODO : Free check
 // TODO : Free search (size)
@@ -56,6 +63,7 @@ static gboolean on_handle_put (
     printf("PUT: %s FROM %s\n",key,src);
     myPut(key,src);
     guint err = 0;
+//    guint err = EAGAIN;
     /** End of Put method execution, returning values **/
 
     rfos_complete_put(object, invocation, err);
@@ -133,20 +141,22 @@ static void on_name_acquired (GDBusConnection *connection,
 int main (int argc,char* argv[])
 {
   printf("Disk count : %d\n",argc-1);
-  /*
+
   if(argc<3){
     printf("Error need 2+ disk\n");
     return 1;
+  }else{
+    diskMode=10;
   }
-  */
+
 
   // Check disk
   // TODO is this gonna take more than 3 min
-  diskCount=argc;
+  diskCount=argc-1;
   checkDisk(argv);
 
-  guint fcounter=1234;
-  editFile("disk1.img",&fcounter,17,4);
+  guint fcounter=0;
+  editFile("disk1.img",&fcounter,addrFreeSpaceVector,4);
   // TODO : For test purpose
   guint fCounter=getFileCounter();
   printf("\n%u\n",fCounter);

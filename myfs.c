@@ -10,6 +10,8 @@
 extern char * diskFileName[4];
 extern FILE * diskFile[4];
 extern int diskCount;
+extern guint64 diskSize;
+extern int diskMode;
 
 const guint addrFileCounter=17; // 4B
 const guint addrFreeSpaceVector=21; // 1/8 B
@@ -21,7 +23,7 @@ guint addrData; // 16B+X
 // Atime = 4B
 // Size = 4B
 
-guint BytesArrayToGuint(char* buffer){
+guint BytesArrayToGuint(guchar* buffer){
   guint number;
   number=(guchar)buffer[0];
   number+=(guchar)buffer[1]<<8;
@@ -31,7 +33,7 @@ guint BytesArrayToGuint(char* buffer){
 }
 
 guint getFileCounter(){
-  char * buffer = readFileN(diskFileName[0],addrFileCounter,4);
+  guchar * buffer = readFileN(diskFileName[0],addrFileCounter,4);
   return BytesArrayToGuint(buffer);
 }
 
@@ -69,8 +71,7 @@ int checkFirstSection(int i, guint64 diskSize){
 
 void checkDisk(char* diskArg[]){
   int i=0;
-  guint64 diskSize;
-  for(i=0;i<diskCount-1;i++){
+  for(i=0;i<diskCount;i++){
     // TODO : Detect is disk in system, format disk
     // TODO : how to deal when disk order in wrong , Add disk order number to disk header
     // TODO : Detect missing,corrupt disk
