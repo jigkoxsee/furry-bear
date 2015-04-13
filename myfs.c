@@ -17,12 +17,12 @@ const guint ADDR_FILE_COUNTER=17; // 4B
 const guint ADDR_FREE_SPACE_VECTOR=21; // 1/8 B
 const guint ATIME_SIZE=4;
 const guint SIZE_SIZE=4;
-guint ADDR_FILE_MAP; // 12B*N
+guint ADDR_FILE_MAP=121000000; // 12B*N
 // Name = 8B
 // fPTR = 4B
 
 // TODO : function to set this value
-guint ADDR_DATA=2000000; // 16B+X
+guint ADDR_DATA=200000000; // 16B+X
 // Atime = 4B
 // Size = 4B
 
@@ -108,21 +108,42 @@ guint myPut(const gchar *key,const gchar *src){
   fclose(filePTR);
   printf(">> %d\n",fileSize);
 
-  // Find freeSpace
-  guint64 addrFile=FreeSpaceFind(fileSize);
+  guint fileCounter=getFileCounter();
 
-  // Insert file data
-  // atime,size,data
+  guint realSize=(4+4+fileSize)/8;
+  // Find freeSpace
+  guint64 freeOffset=FreeSpaceFind(realSize);
+  guint64 addrFile=ADDR_DATA+freeOffset*8;
+  // TODO return ENOSPC if no space enough
+
+  // Insert file data=atime,size,data
   guint timeUnix=(guint)g_date_time_to_unix(g_date_time_new_now_local());
   //printf("UNIX %"G_GUINT32_FORMAT"\n",timeUnix);
-  diskWriteData(addrFile,&timeUnix,fileSize);
+  diskWriteData(addrFile,&timeUnix,ATIME_SIZE);
   // size
-  diskWriteData(addrFile+ATIME_SIZE,&fileSize,fileSize);
+  diskWriteData(addrFile+ATIME_SIZE,&fileSize,SIZE_SIZE);
   // data
   guchar* data=readFileN((char*)src,0,fileSize);
   diskWriteData(addrFile+ATIME_SIZE+SIZE_SIZE,(void*)data,fileSize);
+
   // Inser map
+  // check key size ==8
+  // TODO : check duplicate
+  if(strlen(key)==8){
+    FMapAdd(fileCounter,key,addrFile);
+  }else{
+    return ENAMETOOLONG;
+  }
+  // Increse file counter
+  fileCounter+=1;
+  diskWriteData(ADDR_FILE_COUNTER,&fileCounter,SIZE_SIZE);
+
   // mark
+  guchar mark=0xFF;
+  int i;
+  for(i=0;i<realSize;i++){
+    diskWriteData(ADDR_FREE_SPACE_VECTOR+freeOffset+i,&mark,1);
+  }
   return 0;
 }
 

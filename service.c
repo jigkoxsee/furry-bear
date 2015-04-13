@@ -158,8 +158,8 @@ int main (int argc,char* argv[])
   diskCount=argc-1;
   checkDisk(argv);
 
-  //guint fcounter=0;
-  //editFile("disk1.img",&fcounter,addrFreeSpaceVector,4);
+//  guint fcounter=0;
+//  editFile("disk1.img",&fcounter,ADDR_FILE_COUNTER,4);
 
   // TODO : For test purpose
   guint fCounter=getFileCounter();
