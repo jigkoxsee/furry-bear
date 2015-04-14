@@ -35,15 +35,12 @@ int reDistributeMode=0;
 guint fileCounter;
 GTree* fileMap;
 
-// TODO : Free check
-// TODO : Free search (size)
-// TODO : Free allocate
-
-
-// TODO : MAP
-//
-// TODO : FCB
-// TODO :
+// TODO
+// TODO
+// TODO : Need to change Addr data type to guint64
+// TODO
+// TODO
+// TODO
 
 static gboolean on_handle_get (
     RFOS *object,
@@ -119,13 +116,10 @@ static gboolean on_handle_stat ( // TODO : how to return atime and size
     guint size=0;
     guint64 atime=0;
     guint err = 0;
-    /** End of Get method execution, returning values **/
     printf("STAT: %s\n",key);
     printf("FileCounter : %d\n",fileCounter);
-
-    //err = myStat(key,&size,&atime);
-    myStat(key,&size,&atime);
-
+    err = myStat(key,&size,&atime);
+    /** End of Get method execution, returning values **/
     rfos_complete_stat(object, invocation,size,atime,err);
     /*
     void rfos_complete_stat (

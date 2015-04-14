@@ -23,7 +23,7 @@ const guint FNAME_SIZE=8;
 
 
 // Find first space with fit a specific size
-gint64 FreeSpaceFind(guint64 realSize){
+gint64 FreeSpaceFind(guint realSize){
   // Calculate add Head too
   // atime,size,data
   guint64 fsSize=100000000; // TODO
@@ -51,16 +51,38 @@ gint64 FreeSpaceFind(guint64 realSize){
       return -1;
     }
   }
-  printf(">>>%"G_GUINT64_FORMAT"@%"G_GUINT64_FORMAT" (%"G_GUINT64_FORMAT")\n",
+  printf(">>>%"G_GUINT64_FORMAT"@%"G_GUINT64_FORMAT" (%d)\n",
       count,start,realSize);
   return start;
 }
 
-void FreeSpaceMark(){
+void FreeSpaceMark(guint realSize,guint64 freeOffset){
+  printf("Allocate freespace\n");
+  guchar mark[realSize];
+  int i;
+  for(i=0;i<realSize;i++){
+    mark[i]=0xFF;
+  }
+  diskWriteData(ADDR_FREE_SPACE_VECTOR+freeOffset,&mark,realSize);
 
 }
 
-void FreeSpaceUnmark(){
+void FreeSpaceUnmark(guint realSize,guint64 addrFile){
+  printf("Free allocate space\n");
+  // 0 = @21,...
+  guint64 allocOffset=(addrFile-ADDR_DATA)/8;
+  guint realBlockSize=realSize/8;
+  printf("AllocOffset : %"G_GUINT64_FORMAT"\n",allocOffset);
+  printf("BlockNumber : %d\n",realBlockSize);
+  printf("RealAddrStart : %"G_GUINT64_FORMAT"\n",ADDR_FREE_SPACE_VECTOR+allocOffset);
+  printf("RealAddrStop : %"G_GUINT64_FORMAT"\n",ADDR_FREE_SPACE_VECTOR+allocOffset+realBlockSize-1);
+
+  guchar mark[realBlockSize];
+  int i;
+  for(i=0;i<realBlockSize;i++){
+    mark[i]=0;
+  }
+  diskWriteData(ADDR_FREE_SPACE_VECTOR+allocOffset,&mark,realBlockSize);
 
 }
 
