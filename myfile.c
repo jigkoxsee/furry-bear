@@ -6,17 +6,13 @@
 
 extern guint fileCounter;
 // This file is do work about file map,FCB
-
+/*
 typedef struct FCB FCB;
 struct FCB{
   gint64  accessTime; // g_date_time_to_unix()
   int size;     // End
 };
-
-struct FMAP{
-  char* name;
-  FCB* fptr;
-};
+*/
 
 guint8* readFileN(char * fileName,guint offset,guint size){
   FILE* fileptr;

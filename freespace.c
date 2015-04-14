@@ -14,13 +14,13 @@ extern int diskMode;
 extern guint fileCounter;
 extern GTree* fileMap;
 
-extern const guint ADDR_FREE_SPACE_VECTOR; // 1/8 B
-extern const guint ADDR_FILE_COUNTER; // 4B
-extern guint ADDR_FILE_MAP; // 12B*N
-extern guint ADDR_DATA; // 16B+X
-
-const guint FNAME_SIZE=8;
-
+extern const guint ADDR_FREE_SPACE_VECTOR;
+extern const guint ADDR_FILE_COUNTER;
+extern guint ADDR_FILE_MAP;
+extern guint ADDR_DATA;
+extern const guint KEY_SIZE;
+extern const guint ATIME_SIZE;
+extern const guint SIZE_SIZE;
 
 // Find first space with fit a specific size
 gint64 FreeSpaceFind(guint realSize){
@@ -93,11 +93,15 @@ void FMapAdd(guint64 fileCounter,const gchar *key,guint fptr){
   editFile(diskFileName[0],(void*)key,(guint64)ADDR_FILE_MAP+(fileCounter*12),8);
   // fptr
   editFile(diskFileName[0],&fptr,(guint64)ADDR_FILE_MAP+(fileCounter*12)
-      +FNAME_SIZE,4);
+      +KEY_SIZE,4);
 
   guint* ffptr = (guint*) malloc(sizeof(guint));
   *ffptr=fptr;
   g_tree_insert(fileMap, (char*)key, ffptr);
+
+  //printf("Increase file counter\n");
+  fileCounter+=1;
+  diskWriteData(ADDR_FILE_COUNTER,&fileCounter,SIZE_SIZE);
 
 }
 

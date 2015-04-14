@@ -72,6 +72,7 @@ static gboolean on_handle_put (
     /** End of Put method execution, returning values **/
 
     rfos_complete_put(object, invocation, err);
+    printf("Finish\n");
     // TODO : for test
     g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
 
@@ -183,7 +184,7 @@ int main (int argc,char* argv[])
 
   // TODO : For test purpose
 
-  //g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
+  g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
   printf("RFOS Ready\n");
   //-------------------------------------------------------------------------
     /* Initialize daemon main loop */

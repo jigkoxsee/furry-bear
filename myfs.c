@@ -30,6 +30,12 @@ guint ADDR_FILE_MAP=121000000; // 12B*N
 guint ADDR_DATA=200000000; // 16B+X
 // Atime = 4B
 // Size = 4B
+struct FMAP{
+  //gchar* key;
+  guint fileNo;
+  guint fptr;
+};
+typedef struct FMAP FMAP;
 
 guint BytesArrayToGuint(guchar* buffer){
   guint number;
@@ -108,7 +114,7 @@ gint getFileSize(FILE *ptr){
 
 gboolean iter_all(gpointer key, gpointer value, gpointer data) {
   //printf("%d : %s, %d\n",key, key, *(guint*)value);
-  printf("%s, %d\n", (char*)key, *(guint*)value);
+  printf("%d: %s, %d\n", ((FMAP*)value)->fileNo, (char*)key, ((FMAP*)value)->fptr);
   return FALSE;
 }
 
@@ -119,37 +125,31 @@ void FMapLoad(){
 
   fileMap= g_tree_new((GCompareFunc)g_ascii_strcasecmp);
 
+  FMAP* fm;
   gchar* key;
-  guint* fptr;
 
-
-  //Loop
   int i;
   printf("\n---%d\n",fileCounter);
-
-
   for (i = 0; i < fileCounter; ++i)
   {
-    printf("File %d:",i);
-
-    key  = (gchar*) malloc((KEY_SIZE+1)*sizeof(gchar));
-    fptr = (guint*) malloc(sizeof(guint));
+    //printf("File %d:",i);
+    fm  = (FMAP*) malloc(sizeof(FMAP));
+    key = (gchar*) malloc((KEY_SIZE+1)*sizeof(gchar));
+    //fptr = (guint*) malloc(sizeof(guint));
     fread(key,KEY_SIZE,1,disk0);
     key[8]=0;
-    printf("%s\t",key);
+    //printf("%s\t",key);
     
-    fread(fptr,SIZE_SIZE,1,disk0);
-    printf("%d\t",*fptr);
+    fread(&(fm->fptr),SIZE_SIZE,1,disk0);
+    //printf("%d\t",fm->fptr);
 
-    g_tree_insert(fileMap, key, fptr);
+    fm->fileNo=i;
+    g_tree_insert(fileMap, key, fm);
     /* code */
-    printf("\n");
+    //printf("\n");
   }
   fclose(disk0);
-
   //g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
-    // Read each element
-    // Insert to map
   printf("Load file map finish\n");
 }
 
@@ -176,12 +176,14 @@ void getFileMeta(guint addr,guint* size,guint64 *atime){
 * return 0 - Key not existing
 * return value - Address of existing file meta = atime+size+data
 */
-guint* checkDuplicateKey(const gchar* key){
+FMAP* checkDuplicateKey(const gchar* key){
   gpointer value = g_tree_search(fileMap, (GCompareFunc)finder, key);
-  return (guint*)value;
+  return (FMAP*)value;
 }
 
 void putFileDataToDisk(guint fileSize,const char* src,guint64 addrFile){
+  // Insert file data=atime,size,data
+  printf("Insert Data\n");
   guint timeUnix=(guint)g_date_time_to_unix(g_date_time_new_now_local());
   //printf("UNIX %"G_GUINT32_FORMAT"\n",timeUnix);
   diskWriteData(addrFile,&timeUnix,ATIME_SIZE);
@@ -192,13 +194,41 @@ void putFileDataToDisk(guint fileSize,const char* src,guint64 addrFile){
   diskWriteData(addrFile+ATIME_SIZE+SIZE_SIZE,(void*)data,fileSize);
 }
 
+guint replaceKeyWithNewDataSize(const gchar *key,guint realBlockSize,
+    guint fileSize,const char* src,FMAP* fileMeta){
+  guint64 addrFile;
+  guint freeOffset;
+
+  // Find freeSpace
+  printf("Find freespace %d\n",realBlockSize);
+  freeOffset=FreeSpaceFind(realBlockSize);
+  if(freeOffset==-1)
+    return ENOSPC;
+  addrFile=ADDR_DATA+freeOffset*8;
+
+  // Insert file data=atime,size,data
+  putFileDataToDisk(fileSize,src,addrFile);
+
+  // mark
+  FreeSpaceMark(realBlockSize,freeOffset);
+
+  // Change file map - fptr
+  fileMeta->fptr=addrFile;
+  g_tree_replace (fileMap,(gchar*)key,fileMeta);
+  editFile(diskFileName[0],&addrFile,(guint64)ADDR_FILE_MAP+(fileMeta->fileNo*12)
+      +KEY_SIZE,4);
+
+  return 0;
+}
+
 guint myPut(const gchar *key,const gchar *src){
+  guint8 replaceMode=0;
   // check key size ==8
+  // TODO : Check Key accept only [a-zA-Z]
   printf("File Map add\n");
   if(strlen(key)!=8){
     return ENAMETOOLONG;
   }
-  // TODO : Check Key accept only [a-zA-Z]
 
   // Get file size
   FILE *filePTR;
@@ -206,39 +236,36 @@ guint myPut(const gchar *key,const gchar *src){
   guint fileSize=getFileSize(filePTR);
   fclose(filePTR);
   printf(">> %d\n",fileSize);
-  guint realSize=(ATIME_SIZE+SIZE_SIZE+fileSize)/8;
+  guint realBlockSize=(ATIME_SIZE+SIZE_SIZE+fileSize)/8;
 
-  // TODO : check duplicate key
+  // check duplicate key
   guint addrFile=0;
-  guint* existingFileMetaAddr=checkDuplicateKey(key);
-  if(existingFileMetaAddr){
+  FMAP* existingFileMeta=checkDuplicateKey(key);
+  guint existingFileAddr=existingFileMeta->fptr;
+  if(existingFileAddr){
     // read file meta
     guint existSize;
-    getFileMeta(*existingFileMetaAddr,&existSize,NULL);
-    printf("Existing addr : %d\n", *existingFileMetaAddr);
+    getFileMeta(existingFileAddr,&existSize,NULL);
+    printf("Existing addr : %d\n", existingFileAddr);
     printf("Existing size : %d\n", existSize); 
-    printf("New size : %d\n", fileSize);//realSize
+    printf("New size : %d\n", fileSize);//realBlockSize
     // if same size => replace data in same addr
     if(fileSize==existSize){
-      addrFile=*existingFileMetaAddr;
+      replaceMode=1;
+      addrFile=existingFileAddr;
     }else{
-      // get and change file meta @ fptr
-      // change fptr value in file map in memory
-      
       // unmark old addr
-      //guint existRealSize=(ATIME_SIZE+SIZE_SIZE+existSize);
-      //FreeSpaceUnmark(existRealSize,*existingFileMetaAddr);
+      guint existRealSize=(ATIME_SIZE+SIZE_SIZE+existSize);
+      FreeSpaceUnmark(existRealSize,existingFileAddr);
+      return replaceKeyWithNewDataSize(key,realBlockSize,fileSize,src,existingFileMeta);
     }   
   }
 
-  return 0;
-  // TODO - For test
-
   // Find freeSpace
   guint64 freeOffset;
-  if(addrFile==0){
-    printf("Find freespace %d\n",realSize);
-    freeOffset=FreeSpaceFind(realSize);
+  if(replaceMode==0){
+    printf("Find freespace %d\n",realBlockSize);
+    freeOffset=FreeSpaceFind(realBlockSize);
     if(freeOffset==-1)
       return ENOSPC;
         // TODO return ENOSPC if no space enough
@@ -248,19 +275,14 @@ guint myPut(const gchar *key,const gchar *src){
   }
 
   // Insert file data=atime,size,data
-  printf("Insert Data\n");
   putFileDataToDisk(fileSize,src,addrFile);
-  
 
-  // Increse file counter
-  printf("Increase file counter\n");
-  fileCounter+=1;
-  diskWriteData(ADDR_FILE_COUNTER,&fileCounter,SIZE_SIZE);
   // mark
-  FreeSpaceMark(realSize,freeOffset);
+  FreeSpaceMark(realBlockSize,freeOffset);
+
   // Insert map
-  FMapAdd(fileCounter,key,addrFile);
-  printf("Finish\n");  
+  if(replaceMode==0) // if replace dont add new file map
+    FMapAdd(fileCounter,key,addrFile);
   return 0;
 }
 
@@ -274,7 +296,7 @@ guint myStat(const gchar* key,guint* size,guint64 *atime){
     return ENOENT;
   }
 
-  getFileMeta(*(guint*)value,size,atime);
+  getFileMeta(((FMAP*)value)->fptr,size,atime);
 
   return 0;
 }
