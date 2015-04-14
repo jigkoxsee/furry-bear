@@ -23,7 +23,7 @@
 
 // TODO TODO TODO : return EBUSY when not ready
 guint getFileCounter();
-gboolean iter_all(gpointer key, gpointer value, gpointer data);// TODO for test
+
 
 
 char * diskFileName[4];
@@ -31,8 +31,8 @@ FILE * diskFile[4];
 int diskCount;
 guint64 diskSize;
 int diskMode=1;
+int reDistributeMode=0;
 guint fileCounter;
-
 GTree* fileMap;
 
 // TODO : Free check
@@ -55,6 +55,7 @@ static gboolean on_handle_get (
     guint err = 0;
     /** End of Get method execution, returning values **/
     printf("GET: %s TO %s\n",key,outpath);
+    // TODO : update Atime when this fn is call
 
     rfos_complete_get(object, invocation, err);
     return TRUE;
@@ -74,6 +75,8 @@ static gboolean on_handle_put (
     /** End of Put method execution, returning values **/
 
     rfos_complete_put(object, invocation, err);
+    // TODO : for test
+    g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
 
     return TRUE;
 }
@@ -118,6 +121,10 @@ static gboolean on_handle_stat ( // TODO : how to return atime and size
     guint err = 0;
     /** End of Get method execution, returning values **/
     printf("STAT: %s\n",key);
+    printf("FileCounter : %d\n",fileCounter);
+
+    //err = myStat(key,&size,&atime);
+    myStat(key,&size,&atime);
 
     rfos_complete_stat(object, invocation,size,atime,err);
     /*
@@ -182,7 +189,7 @@ int main (int argc,char* argv[])
 
   // TODO : For test purpose
 
-  g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
+  //g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
   printf("RFOS Ready\n");
   //-------------------------------------------------------------------------
     /* Initialize daemon main loop */

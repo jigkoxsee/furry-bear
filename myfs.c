@@ -20,6 +20,8 @@ const guint ADDR_FREE_SPACE_VECTOR=21; // 1/8 B
 const guint KEY_SIZE=8;
 const guint ATIME_SIZE=4;
 const guint SIZE_SIZE=4;
+
+// TODO : Need function to calculate this.
 guint ADDR_FILE_MAP=121000000; // 12B*N
 // Name = 8B
 // fPTR = 4B
@@ -137,7 +139,7 @@ void FMapLoad(){
     printf("%s\t",key);
     
     fread(fptr,SIZE_SIZE,1,disk0);
-    printf("%x\t",*fptr);
+    printf("%d\t",*fptr);
 
     g_tree_insert(fileMap, key, fptr);
     /* code */
@@ -180,9 +182,10 @@ guint myPut(const gchar *key,const gchar *src){
   guchar* data=readFileN((char*)src,0,fileSize);
   diskWriteData(addrFile+ATIME_SIZE+SIZE_SIZE,(void*)data,fileSize);
 
-  // Inser map
-  // check key size ==8
+  // Insert map
   // TODO : check duplicate
+
+  // check key size ==8
   printf("File Map add\n");
   if(strlen(key)==8){
     FMapAdd(fileCounter,key,addrFile);
@@ -206,5 +209,38 @@ guint myPut(const gchar *key,const gchar *src){
   return 0;
 }
 
+// user_data : pass "prefix key"
+gint finder(gpointer key, gpointer user_data) {
+  // TODO : if prefix match -> remember
+  //printf("F %d %s\n",key,(char*)key);
+  return -g_ascii_strcasecmp(key,(char*)user_data);
+}
+
+void myGetFile(guint addr,guint* size,guint64 *atime){
+  
+  guint8* buffer=readFileN(diskFileName[0],addr,ATIME_SIZE);
+  *atime=(guint64)BytesArrayToGuint(buffer);
+
+  buffer=readFileN(diskFileName[0],addr+ATIME_SIZE,SIZE_SIZE);
+  *size=BytesArrayToGuint(buffer);
+
+  //printf("TIME : %d\n", *atime);
+  //printf("SIZE : %d\n", *size);
+
+}
+
+guint myStat(const gchar* key,guint* size,guint64 *atime){
+  printf("\nStat Searching\n");
+  gpointer value = g_tree_search(fileMap, (GCompareFunc)finder, key);
+  printf("\nData :%d\n",*(guint*)value);
+
+  myGetFile(*(guint*)value,size,atime);
+
+  if(1){
+    // File not found
+    return ENOENT;
+  }
+  return 0;
+}
 
 #endif

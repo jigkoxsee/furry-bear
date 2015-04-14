@@ -12,6 +12,7 @@ extern int diskCount;
 extern guint64 diskSize;
 extern int diskMode;
 extern guint fileCounter;
+extern GTree* fileMap;
 
 extern const guint ADDR_FREE_SPACE_VECTOR; // 1/8 B
 extern const guint ADDR_FILE_COUNTER; // 4B
@@ -64,13 +65,18 @@ void FreeSpaceUnmark(){
 }
 
 // TODO : if fileCounter need to pass
-void FMapAdd(guint64 fileCounter,const gchar *key,guint64 fptr){
+void FMapAdd(guint64 fileCounter,const gchar *key,guint fptr){
   // Insert to map=8B+4B
   // key
   editFile(diskFileName[0],(void*)key,(guint64)ADDR_FILE_MAP+(fileCounter*12),8);
   // fptr
   editFile(diskFileName[0],&fptr,(guint64)ADDR_FILE_MAP+(fileCounter*12)
       +FNAME_SIZE,4);
+
+  guint* ffptr = (guint*) malloc(sizeof(guint));
+  *ffptr=fptr;
+  g_tree_insert(fileMap, (char*)key, ffptr);
+
 }
 
 #endif
