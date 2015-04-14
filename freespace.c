@@ -105,11 +105,29 @@ void FMapAdd(const gchar *key,guint fptr){
   
   printf("NK : %s\n",newKey);
 
-  fileCounter+=1;
+  fileCounter++;
   g_tree_insert(fileMap, newKey, fm);
 
   //printf("Increase file counter\n");
   diskWriteData(ADDR_FILE_COUNTER,&fileCounter,SIZE_SIZE);
+
+}
+
+void FMapRemove(const gchar *key,guint fileNo){
+  // in mem
+  g_tree_remove(fileMap,key);
+  fileCounter--;
+
+  // in disk
+  // TODO ?? - Compact file map
+  guint64 fileMapAddr=ADDR_FILE_MAP+(fileNo)*12;
+  guint8* blank[KEY_SIZE+SIZE_SIZE];
+  int i;
+  for (i = 0; i < (KEY_SIZE+SIZE_SIZE); ++i)
+  {
+    blank[i]=0;
+  }
+  editFile(diskFileName[0],blank,fileMapAddr,KEY_SIZE+SIZE_SIZE);
 
 }
 

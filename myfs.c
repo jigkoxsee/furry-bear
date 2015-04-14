@@ -171,7 +171,7 @@ void getFileMeta(guint addr,guint* size,guint64 *atime){
 * return 0 - Key not existing
 * return value - Address of existing file meta = atime+size+data
 */
-FMAP* checkDuplicateKey(const gchar* key){
+FMAP* checkExistingKey(const gchar* key){
   gpointer value = g_tree_search(fileMap, (GCompareFunc)finder, key);
   return (FMAP*)value;
 }
@@ -235,7 +235,7 @@ guint myPut(const gchar *key,const gchar *src){
 
   // check duplicate key
   guint addrFile=0;
-  FMAP* existingFileMeta=checkDuplicateKey(key);
+  FMAP* existingFileMeta=checkExistingKey(key);
   if(existingFileMeta){
     printf("Duplicate Key\n");
     guint existingFileAddr=existingFileMeta->fptr;
@@ -294,6 +294,35 @@ guint myStat(const gchar* key,guint* size,guint64 *atime){
 
   getFileMeta(((FMAP*)value)->fptr,size,atime);
 
+  return 0;
+}
+
+
+guint myRemove(const gchar* key){
+  // TODO - file is using => EAGAIN
+
+
+  // TODO - check key length
+  if(strlen(key)!=8)
+    return ENAMETOOLONG;
+  // TODO - Check key accept only [a-zA-Z] (No need?)
+
+  FMAP* fileMeta=checkExistingKey(key);
+  if(fileMeta==0)
+    return ENOENT;
+  else{
+    guint fileSize;
+    guint64 fileAddr=fileMeta->fptr;
+    getFileMeta(fileAddr,&fileSize,NULL);
+    printf("Size: %d\n",fileSize);
+    guint realSize=fileSize+ATIME_SIZE+SIZE_SIZE;
+
+    // Remove file map
+    FMapRemove(key,fileAddr);
+    
+    // Unmark allocate space
+    FreeSpaceUnmark(realSize,fileMeta->fileNo);
+  }
   return 0;
 }
 
