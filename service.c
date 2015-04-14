@@ -23,6 +23,7 @@
 
 // TODO TODO TODO : return EBUSY when not ready
 guint getFileCounter();
+gboolean iter_all(gpointer key, gpointer value, gpointer data);// TODO for test
 
 
 char * diskFileName[4];
@@ -30,6 +31,9 @@ FILE * diskFile[4];
 int diskCount;
 guint64 diskSize;
 int diskMode=1;
+guint fileCounter;
+
+GTree* fileMap;
 
 // TODO : Free check
 // TODO : Free search (size)
@@ -84,7 +88,7 @@ static gboolean on_handle_remove (
     /** End of Get method execution, returning values **/
     printf("REMOVE: %s\n",key);
 
-    rfos_complete_get(object, invocation, err);
+    rfos_complete_remove(object, invocation, err);
     return TRUE;
 }
 
@@ -99,7 +103,7 @@ static gboolean on_handle_search (
     /** End of Get method execution, returning values **/
     printf("SEARCH: %s\n",key);
 
-    rfos_complete_get(object, invocation, err);
+    rfos_complete_search(object, invocation, err);
     return TRUE;
 }
 
@@ -109,11 +113,21 @@ static gboolean on_handle_stat ( // TODO : how to return atime and size
     const gchar *key) {
 
     /** Your Code for Get method here **/
+    guint size=0;
+    guint64 atime=0;
     guint err = 0;
     /** End of Get method execution, returning values **/
     printf("STAT: %s\n",key);
 
-    rfos_complete_get(object, invocation, err);
+    rfos_complete_stat(object, invocation,size,atime,err);
+    /*
+    void rfos_complete_stat (
+        RFOS *object,
+        GDBusMethodInvocation *invocation,
+        guint size,
+        gint64 atime,
+        guint err);
+    */
     return TRUE;
 }
 static void on_name_acquired (GDBusConnection *connection,
@@ -154,17 +168,21 @@ int main (int argc,char* argv[])
 
 
   // Check disk
-  // TODO is this gonna take more than 3 min
+  // TODO is this gonna take more than 3 min?
   diskCount=argc-1;
   checkDisk(argv);
+
+  fileCounter=getFileCounter();
+  printf("\n%u\n",fileCounter);
   // TODO TODO TODO - load file map into memory
+  FMapLoad();
 
 //  guint fcounter=0;
 //  editFile("disk1.img",&fcounter,ADDR_FILE_COUNTER,4);
 
   // TODO : For test purpose
-  guint fCounter=getFileCounter();
-  printf("\n%u\n",fCounter);
+
+  g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
   printf("RFOS Ready\n");
   //-------------------------------------------------------------------------
     /* Initialize daemon main loop */

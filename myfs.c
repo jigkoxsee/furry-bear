@@ -12,9 +12,12 @@ extern FILE * diskFile[4];
 extern int diskCount;
 extern guint64 diskSize;
 extern int diskMode;
+extern guint fileCounter;
+extern GTree* fileMap;
 
 const guint ADDR_FILE_COUNTER=17; // 4B
 const guint ADDR_FREE_SPACE_VECTOR=21; // 1/8 B
+const guint KEY_SIZE=8;
 const guint ATIME_SIZE=4;
 const guint SIZE_SIZE=4;
 guint ADDR_FILE_MAP=121000000; // 12B*N
@@ -101,6 +104,53 @@ gint getFileSize(FILE *ptr){
   return filelen;
 }
 
+gboolean iter_all(gpointer key, gpointer value, gpointer data) {
+  //printf("%d : %s, %d\n",key, key, *(guint*)value);
+  printf("%s, %d\n", (char*)key, *(guint*)value);
+  return FALSE;
+}
+
+void FMapLoad(){
+  FILE* disk0;
+  disk0 = fopen(diskFileName[0],"rb");
+  fseek(disk0,ADDR_FILE_MAP,SEEK_SET);
+
+  fileMap= g_tree_new((GCompareFunc)g_ascii_strcasecmp);
+ 
+  gchar* key;
+  guint* fptr;
+
+
+  //Loop
+  int i;
+  printf("\n---%d\n",fileCounter);
+
+
+  for (i = 0; i < fileCounter; ++i)
+  {
+    printf("File %d:",i);
+
+    key  = (gchar*) malloc((KEY_SIZE+1)*sizeof(gchar));
+    fptr = (guint*) malloc(sizeof(guint));
+    fread(key,KEY_SIZE,1,disk0);
+    key[8]=0;
+    printf("%s\t",key);
+    
+    fread(fptr,SIZE_SIZE,1,disk0);
+    printf("%x\t",*fptr);
+
+    g_tree_insert(fileMap, key, fptr);
+    /* code */
+    printf("\n");
+  }
+  fclose(disk0);
+
+  //g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
+    // Read each element
+    // Insert to map
+  printf("Load file map finish\n");
+}
+
 guint myPut(const gchar *key,const gchar *src){
   FILE *filePTR;
   filePTR = fopen(src,"rb");  // Open file in binary
@@ -108,7 +158,7 @@ guint myPut(const gchar *key,const gchar *src){
   fclose(filePTR);
   printf(">> %d\n",fileSize);
 
-  guint fileCounter=getFileCounter();
+  //guint fileCounter=getFileCounter();
 
   guint realSize=(4+4+fileSize)/8;
   // Find freeSpace

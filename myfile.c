@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <glib.h>
 
+extern guint fileCounter;
 // This file is do work about file map,FCB
 
 typedef struct FCB FCB;
@@ -17,14 +18,14 @@ struct FMAP{
   FCB* fptr;
 };
 
-guchar* readFileN(char * fileName,guint offset,guint size){
+guint8* readFileN(char * fileName,guint offset,guint size){
   FILE* fileptr;
-  guchar* buffer;
+  guint8* buffer;
 
   fileptr = fopen(fileName,"rb");  // Open file in binary
   fseek(fileptr,offset,SEEK_SET); // Seek file to the end
 
-  buffer = (guchar*) malloc((size)*sizeof(guchar)); // Allocation memory for read file
+  buffer = (guint8*) malloc((size)*sizeof(guint8)); // Allocation memory for read file
   // TODO : Avoid allocate ahead (allocate only need)
   fread(buffer,size,1,fileptr); // Read file
   fclose(fileptr); // close file

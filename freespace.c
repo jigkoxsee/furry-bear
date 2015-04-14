@@ -11,6 +11,8 @@ extern FILE * diskFile[4];
 extern int diskCount;
 extern guint64 diskSize;
 extern int diskMode;
+extern guint fileCounter;
+
 extern const guint ADDR_FREE_SPACE_VECTOR; // 1/8 B
 extern const guint ADDR_FILE_COUNTER; // 4B
 extern guint ADDR_FILE_MAP; // 12B*N
@@ -61,6 +63,7 @@ void FreeSpaceUnmark(){
 
 }
 
+// TODO : if fileCounter need to pass
 void FMapAdd(guint64 fileCounter,const gchar *key,guint64 fptr){
   // Insert to map=8B+4B
   // key
