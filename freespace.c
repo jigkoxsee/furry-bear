@@ -87,7 +87,7 @@ void FreeSpaceUnmark(guint realSize,guint64 addrFile){
 }
 
 // TODO : if fileCounter need to pass
-void FMapAdd(guint64 fileCounter,const gchar *key,guint fptr){
+void FMapAdd(const gchar *key,guint fptr){
   // Insert to map=8B+4B
   // key
   editFile(diskFileName[0],(void*)key,(guint64)ADDR_FILE_MAP+(fileCounter*12),8);
@@ -95,12 +95,14 @@ void FMapAdd(guint64 fileCounter,const gchar *key,guint fptr){
   editFile(diskFileName[0],&fptr,(guint64)ADDR_FILE_MAP+(fileCounter*12)
       +KEY_SIZE,4);
 
-  guint* ffptr = (guint*) malloc(sizeof(guint));
-  *ffptr=fptr;
-  g_tree_insert(fileMap, (char*)key, ffptr);
+  FMAP* fm = (FMAP*) malloc(sizeof(FMAP));
+  fm->fileNo=fileCounter;
+  fm->fptr=fptr;  
+
+  fileCounter+=1;
+  g_tree_insert(fileMap, (char*)key, fm);
 
   //printf("Increase file counter\n");
-  fileCounter+=1;
   diskWriteData(ADDR_FILE_COUNTER,&fileCounter,SIZE_SIZE);
 
 }

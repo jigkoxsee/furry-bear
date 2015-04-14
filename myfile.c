@@ -5,6 +5,13 @@
 #include <glib.h>
 
 extern guint fileCounter;
+struct FMAP{
+  //gchar* key;
+  guint fileNo;
+  guint fptr;
+};
+typedef struct FMAP FMAP;
+
 // This file is do work about file map,FCB
 /*
 typedef struct FCB FCB;

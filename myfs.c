@@ -30,12 +30,7 @@ guint ADDR_FILE_MAP=121000000; // 12B*N
 guint ADDR_DATA=200000000; // 16B+X
 // Atime = 4B
 // Size = 4B
-struct FMAP{
-  //gchar* key;
-  guint fileNo;
-  guint fptr;
-};
-typedef struct FMAP FMAP;
+
 
 guint BytesArrayToGuint(guchar* buffer){
   guint number;
@@ -241,8 +236,9 @@ guint myPut(const gchar *key,const gchar *src){
   // check duplicate key
   guint addrFile=0;
   FMAP* existingFileMeta=checkDuplicateKey(key);
-  guint existingFileAddr=existingFileMeta->fptr;
-  if(existingFileAddr){
+  if(existingFileMeta){
+    printf("Duplicate Key\n");
+    guint existingFileAddr=existingFileMeta->fptr;
     // read file meta
     guint existSize;
     getFileMeta(existingFileAddr,&existSize,NULL);
@@ -282,7 +278,7 @@ guint myPut(const gchar *key,const gchar *src){
 
   // Insert map
   if(replaceMode==0) // if replace dont add new file map
-    FMapAdd(fileCounter,key,addrFile);
+    FMapAdd(key,addrFile);
   return 0;
 }
 
