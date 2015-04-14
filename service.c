@@ -88,6 +88,7 @@ static gboolean on_handle_remove (
     guint err = 0;
     /** End of Get method execution, returning values **/
     printf("REMOVE: %s\n",key);
+    err=myRemove(key);
 
     rfos_complete_remove(object, invocation, err);
     return TRUE;

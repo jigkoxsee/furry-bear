@@ -97,10 +97,16 @@ void FMapAdd(const gchar *key,guint fptr){
 
   FMAP* fm = (FMAP*) malloc(sizeof(FMAP));
   fm->fileNo=fileCounter;
-  fm->fptr=fptr;  
+  fm->fptr=fptr;
+  gchar* newKey;
+  newKey = (gchar*) malloc((KEY_SIZE+1)*sizeof(gchar));
+  strncpy(newKey,key,8);
+  newKey[8]=0;
+  
+  printf("NK : %s\n",newKey);
 
   fileCounter+=1;
-  g_tree_insert(fileMap, (char*)key, fm);
+  g_tree_insert(fileMap, newKey, fm);
 
   //printf("Increase file counter\n");
   diskWriteData(ADDR_FILE_COUNTER,&fileCounter,SIZE_SIZE);
