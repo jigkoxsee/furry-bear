@@ -14,6 +14,7 @@ extern guint64 diskSize;
 extern int diskMode;
 extern guint fileCounter;
 extern GTree* fileMap;
+extern GList* fileMapHole;
 
 const guint ADDR_FILE_COUNTER=17; // 4B
 const guint ADDR_FREE_SPACE_VECTOR=21; // 1/8 B
@@ -41,6 +42,8 @@ guint BytesArrayToGuint(guchar* buffer){
   return number;
 }
 
+// TODO : FN-Increease fileCounter
+
 guint getFileCounter(){
   guchar * buffer = readFileN(diskFileName[0],ADDR_FILE_COUNTER,4);
   return BytesArrayToGuint(buffer);
@@ -53,6 +56,7 @@ void formatDisk(int diskNo,guint64 diskSize){
   int strSize=strlen(numberOfDiskSize);
   memmove(numberOfDiskSize+(16-strSize),numberOfDiskSize,strSize);
   memset(numberOfDiskSize,'0',16-strSize);
+  // TODO change byte 17 to RAID mode 1, 0
   numberOfDiskSize[16]='0'+diskNo;
   printf("----%s----",numberOfDiskSize);
   editFile(diskFileName[diskNo],numberOfDiskSize,0,17);
@@ -113,20 +117,33 @@ gboolean iter_all(gpointer key, gpointer value, gpointer data) {
   return FALSE;
 }
 
+void listPrint(gpointer data,gpointer user_data){
+  printf("List : %"G_GUINT64_FORMAT"\n",*(guint64*)data);
+}
+
 void FMapLoad(){
   FILE* disk0;
   disk0 = fopen(diskFileName[0],"rb");
   fseek(disk0,ADDR_FILE_MAP,SEEK_SET);
 
   fileMap= g_tree_new((GCompareFunc)g_ascii_strcasecmp);
+  fileMapHole=NULL;
 
   FMAP* fm;
   gchar* key;
+  guint64* fmHole;
 
-  int i;
+  guint i;
   printf("\n---%d\n",fileCounter);
-  for (i = 0; i < fileCounter; ++i)
+  /*
+  * TODO : Detect hole
+  * when remove file it will be hole and loop below VV
+  * will work incorrectly
+  */
+  guint fileCounterRange=fileCounter;
+  for (i = 0; i < fileCounterRange; ++i)
   {
+    printf("FM load - %d/%d\n",i,fileCounterRange);
     //printf("File %d:",i);
     fm  = (FMAP*) malloc(sizeof(FMAP));
     key = (gchar*) malloc((KEY_SIZE+1)*sizeof(gchar));
@@ -134,16 +151,30 @@ void FMapLoad(){
     fread(key,KEY_SIZE,1,disk0);
     key[8]=0;
     //printf("%s\t",key);
-    
     fread(&(fm->fptr),SIZE_SIZE,1,disk0);
     //printf("%d\t",fm->fptr);
-
     fm->fileNo=i;
+
+    // if it's hole 
+    if(key[0]==0){
+      // Add to freeFileMapHole
+      fmHole=(guint64*) malloc(sizeof(guint64));
+      *fmHole=i;
+      fileMapHole=g_list_prepend(fileMapHole,fmHole);
+      printf("FM hole found\n");
+      // increase max read range
+      fileCounterRange++;
+      continue;
+    }
     g_tree_insert(fileMap, key, fm);
     /* code */
     //printf("\n");
   }
   fclose(disk0);
+  printf("\n Found %u hole\n",fileCounterRange-fileCounter);
+  fileMapHole=g_list_reverse(fileMapHole);
+  g_list_foreach(fileMapHole,listPrint,NULL); // func(pointer data,pointer userdata)
+
   //g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
   printf("Load file map finish\n");
 }
@@ -155,11 +186,11 @@ gint finder(gpointer key, gpointer user_data) {
   return -g_ascii_strcasecmp(key,(char*)user_data);
 }
 
-void getFileMeta(guint addr,guint* size,guint64 *atime){
+void getFileMeta(guint addr,guint* size,guint *atime){
   guint8* buffer;
   if(atime!=NULL){
     buffer=readFileN(diskFileName[0],addr,ATIME_SIZE);
-    *atime=(guint64)BytesArrayToGuint(buffer);
+    *atime=BytesArrayToGuint(buffer);
   }
   if(size!=NULL){
     buffer=readFileN(diskFileName[0],addr+ATIME_SIZE,SIZE_SIZE);
@@ -282,7 +313,7 @@ guint myPut(const gchar *key,const gchar *src){
   return 0;
 }
 
-guint myStat(const gchar* key,guint* size,guint64 *atime){
+guint myStat(const gchar* key,guint* size,guint *atime){
   //printf("\nStat Searching\n");
   gpointer value = g_tree_search(fileMap, (GCompareFunc)finder, key);
   //printf("\nData :%d\n",value);
@@ -297,10 +328,9 @@ guint myStat(const gchar* key,guint* size,guint64 *atime){
   return 0;
 }
 
-
+// TODO - not work properly
 guint myRemove(const gchar* key){
   // TODO - file is using => EAGAIN
-
 
   // TODO - check key length
   if(strlen(key)!=8)
@@ -318,10 +348,69 @@ guint myRemove(const gchar* key){
     guint realSize=fileSize+ATIME_SIZE+SIZE_SIZE;
 
     // Remove file map
-    FMapRemove(key,fileAddr);
+    FMapRemove(key,fileMeta->fileNo);
     
     // Unmark allocate space
-    FreeSpaceUnmark(realSize,fileMeta->fileNo);
+    FreeSpaceUnmark(realSize,fileAddr);
+  }
+  return 0;
+}
+
+guint myGet(gchar *key,gchar *outpath){
+  // Check key size
+  if(strlen(key)!=8){
+    return ENAMETOOLONG;
+  }
+  // Check accept only [a-zA-Z]
+  
+  FMAP* existingFile=checkExistingKey(key);
+  if(existingFile){
+    guint64 fileAddr=existingFile->fptr;
+    
+    // Update Atime when this fn is call
+    guint atime=(guint)g_date_time_to_unix(g_date_time_new_now_local());
+    diskWriteData(fileAddr,&atime,ATIME_SIZE);
+
+    guint fileSize;
+    getFileMeta(fileAddr,&fileSize,&atime);
+
+    // Write data out
+    FILE* fileOut;
+    fileOut = fopen(outpath,"wb");
+
+    // if outpath is busy return EAGAIN
+    // if fopen error return EAGAIN
+    if(fileOut==NULL)
+      return EAGAIN;
+
+    // writing
+    //guint WRITE_SIZE_PER_TIME=10; // TODO : avoid large alloc in mem
+    //guint writedSize=0;
+    //int i;
+    // TODO : FN-DiskPrepare
+    // TODO : FN-DiskReadN
+    guint8* buffer=readFileN(diskFileName[0],fileAddr+ATIME_SIZE+SIZE_SIZE,fileSize);
+    // TODO : what fwrite do if data size is shorter than count(param3)
+    //guint writeSize=fwrite(buffer,1/*byte*/,fileSize,fileOut);
+    fwrite(buffer,1/*byte*/,fileSize,fileOut);
+    /*writedSize+=writeSize;
+    printf("write : %d, Pass : %d\n",writeSize,writedSize);
+    if(writedSize!=WRITE_SIZE_PER_TIME&&writedSize!=fileSize){
+      fclose(fileOut);
+        // TODO : FN-DiskClose
+      return ENOSPC;
+    }
+    i+=writeSize;
+    */
+    fclose(fileOut);
+    // TODO : FN-DiskClose
+
+    // TODO - return ENOSPC if "real" disk free space not enough
+    // (work?) if fwrite return!=count return ENOSPC
+
+  }else{
+    // File (key) not found
+    return ENOENT;
   }
   return 0;
 }

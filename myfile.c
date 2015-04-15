@@ -56,10 +56,13 @@ char * readFile(char * fileName){
 }
 
 void editFile(char * filename,void * data, guint64 byteOffset,guint64 size){
+  printf("Write @%"G_GUINT64_FORMAT"(%"G_GUINT64_FORMAT")\n",byteOffset,size);
   FILE * writeptr;
   writeptr = fopen(filename,"rb+");
   fseek ( writeptr, byteOffset, SEEK_SET );
-  fwrite(data,size,1,writeptr);
+  // TODO - test write
+  //fwrite(data,size,1,writeptr);
+  fwrite(data,1,size,writeptr);
   //fprintf(writeptr,"%s",data); // TODO didnt test
   fclose(writeptr);
 

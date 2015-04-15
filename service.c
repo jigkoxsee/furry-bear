@@ -34,6 +34,10 @@ int diskMode=1;
 int reDistributeMode=0;
 guint fileCounter;
 GTree* fileMap;
+GList* fileMapHole;
+
+// TODO array of free file map hole in disk
+// Keep address of free hole
 
 // TODO
 // TODO
@@ -52,7 +56,7 @@ static gboolean on_handle_get (
     guint err = 0;
     /** End of Get method execution, returning values **/
     printf("GET: %s TO %s\n",key,outpath);
-    // TODO : update Atime when this fn is call
+    myGet((gchar*)key,(gchar*)outpath);
 
     rfos_complete_get(object, invocation, err);
     return TRUE;
@@ -109,28 +113,19 @@ static gboolean on_handle_search (
     return TRUE;
 }
 
-static gboolean on_handle_stat ( // TODO : how to return atime and size
+static gboolean on_handle_stat (
     RFOS *object,
     GDBusMethodInvocation *invocation,
     const gchar *key) {
-
     /** Your Code for Get method here **/
     guint size=0;
-    guint64 atime=0;
+    guint atime=0;
     guint err = 0;
     printf("STAT: %s\n",key);
     printf("FileCounter : %d\n",fileCounter);
     err = myStat(key,&size,&atime);
     /** End of Get method execution, returning values **/
-    rfos_complete_stat(object, invocation,size,atime,err);
-    /*
-    void rfos_complete_stat (
-        RFOS *object,
-        GDBusMethodInvocation *invocation,
-        guint size,
-        gint64 atime,
-        guint err);
-    */
+    rfos_complete_stat(object, invocation,size,(guint64)atime,err);
     return TRUE;
 }
 static void on_name_acquired (GDBusConnection *connection,
@@ -142,9 +137,6 @@ static void on_name_acquired (GDBusConnection *connection,
     /* Bind method invocation signals with the appropriate function calls */
     g_signal_connect (skeleton, "handle-get", G_CALLBACK (on_handle_get), NULL);
     g_signal_connect (skeleton, "handle-put", G_CALLBACK (on_handle_put), NULL);
-
-    //TODO is this all Command? remove,search,stat
-
     g_signal_connect (skeleton, "handle-remove", G_CALLBACK (on_handle_remove), NULL);
     g_signal_connect (skeleton, "handle-search", G_CALLBACK (on_handle_search), NULL);
     g_signal_connect (skeleton, "handle-stat", G_CALLBACK (on_handle_stat), NULL);
@@ -169,7 +161,6 @@ int main (int argc,char* argv[])
     diskMode=10;
   }
 
-
   // Check disk
   // TODO is this gonna take more than 3 min?
   diskCount=argc-1;
@@ -177,15 +168,17 @@ int main (int argc,char* argv[])
 
   fileCounter=getFileCounter();
   printf("\n%u\n",fileCounter);
-  // TODO TODO TODO - load file map into memory
+
+  // load file map into memory
   FMapLoad();
 
 //  guint fcounter=0;
 //  editFile("disk1.img",&fcounter,ADDR_FILE_COUNTER,4);
 
-  // TODO : For test purpose
-
+  // For test purpose
   g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
+  // TODO : Create thread to return EBUSY
+
   printf("RFOS Ready\n");
   //-------------------------------------------------------------------------
     /* Initialize daemon main loop */
