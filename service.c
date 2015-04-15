@@ -105,10 +105,10 @@ static gboolean on_handle_search (
     const gchar *outpath) {
 
     /** Your Code for Get method here **/
+    printf("SEARCH: %s TO %s\n",key,outpath);
     guint err = 0;
     /** End of Get method execution, returning values **/
-    printf("SEARCH: %s\n",key);
-
+    err = mySearch((gchar*)key,(gchar*)outpath);
     rfos_complete_search(object, invocation, err);
     return TRUE;
 }

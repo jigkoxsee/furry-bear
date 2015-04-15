@@ -32,6 +32,14 @@ guint ADDR_DATA=200000000; // 16B+X
 // Atime = 4B
 // Size = 4B
 
+struct SearchData{
+  gchar* key;
+  gboolean status;
+  GList* result;
+  guint size;
+};
+typedef struct SearchData SearchData;
+
 
 guint BytesArrayToGuint(guchar* buffer){
   guint number;
@@ -404,6 +412,69 @@ guint myGet(gchar *key,gchar *outpath){
     return ENOENT;
   }
   return 0;
+}
+
+gboolean iterAllPrefixMatch(gpointer key, gpointer value, gpointer data) {
+  if(g_str_has_prefix ((const gchar *)key,((SearchData*)data)->key)){
+    //printf("prefix match %s\n", (char*)key);
+    ((SearchData*)data)->status=TRUE;
+    ((SearchData*)data)->result=g_list_prepend(((SearchData*)data)->result,(char*)key);
+    ((SearchData*)data)->size++;
+    return FALSE;
+  }
+  if(((SearchData*)data)->status==FALSE)
+    return FALSE;
+  else
+    return TRUE;
+}
+
+void listToStr(gpointer data,gpointer str){
+  //printf("ms : %s \n",(char*)data);
+  g_string_append(str,(char*)data);
+  g_string_append(str,",");
+}
+
+guint mySearch(gchar* key,gchar* outpath){
+  if(strlen(key)>8)
+    return ENAMETOOLONG;
+
+  /*
+  * 1 - key
+  * 2 - result GList
+  */
+  SearchData sData;
+  sData.key=key;
+  sData.status=FALSE;
+  sData.result=NULL;
+  sData.size=0;
+  
+  // TODO : check accept only [a-zA-Z]
+  // Search
+  g_tree_foreach(fileMap, (GTraverseFunc)iterAllPrefixMatch, &sData);
+  sData.result=g_list_reverse(sData.result);
+
+  // not found
+  if(sData.size==0)
+    return ENOENT;
+
+  GString *resCSV=g_string_new("");
+  g_list_foreach(sData.result,listToStr,resCSV);
+  resCSV->str[resCSV->len-1]=0xA; // change last comman
+  //printf("Result : %s\n",resCSV->str);
+  
+  // if real disk not enough space return ENOSPC
+
+  // Write file in CSV format
+  FILE* fileOut;
+  fileOut=fopen(outpath,"wb");
+  // if outpath is busy (fopen fail) return EAGAIN
+  if(fileOut==NULL)
+    return EAGAIN;
+  fwrite(resCSV->str,1,resCSV->len,fileOut);
+  fclose(fileOut);
+
+  return 0;
+
 }
 
 #endif
