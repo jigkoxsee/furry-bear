@@ -66,7 +66,7 @@ void FreeSpaceMark(guint realSize,guint64 freeOffset){
   for(i=0;i<realSize;i++){
     mark[i]=0xFF;
   }
-  diskWriteData(ADDR_FREE_SPACE_VECTOR+freeOffset,&mark,realSize);
+  diskWriteData(ADDR_FREE_SPACE_VECTOR+freeOffset,mark,realSize);
   free(mark);
 }
 

@@ -385,24 +385,14 @@ guint myGet(gchar *key,gchar *outpath){
       return EAGAIN;
 
     // writing
-    //guint WRITE_SIZE_PER_TIME=10; // TODO : avoid large alloc in mem
-    //guint writedSize=0;
-    //int i;
     // TODO : FN-DiskPrepare
     // TODO : FN-DiskReadN
     guint8* buffer=readFileN(diskFileName[0],fileAddr+ATIME_SIZE+SIZE_SIZE,fileSize);
     // TODO : what fwrite do if data size is shorter than count(param3)
-    //guint writeSize=fwrite(buffer,1/*byte*/,fileSize,fileOut);
-    fwrite(buffer,1/*byte*/,fileSize,fileOut);
-    /*writedSize+=writeSize;
-    printf("write : %d, Pass : %d\n",writeSize,writedSize);
-    if(writedSize!=WRITE_SIZE_PER_TIME&&writedSize!=fileSize){
-      fclose(fileOut);
-        // TODO : FN-DiskClose
+    
+    if(fwrite(buffer,1/*byte*/,fileSize,fileOut)!=fileSize)
       return ENOSPC;
-    }
-    i+=writeSize;
-    */
+    
     fclose(fileOut);
     // TODO : FN-DiskClose
 
