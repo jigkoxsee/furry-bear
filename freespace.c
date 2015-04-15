@@ -58,16 +58,16 @@ gint64 FreeSpaceFind(guint realSize){
 }
 
 void FreeSpaceMark(guint realSize,guint64 freeOffset){
-  printf("Allocate freespace\n");
+  printf("Allocate freespace %u block\n",realSize);
   printf("FSAddrStart: %"G_GUINT64_FORMAT"\n",ADDR_FREE_SPACE_VECTOR+freeOffset);
   printf("FSAddrStop : %"G_GUINT64_FORMAT"\n",ADDR_FREE_SPACE_VECTOR+freeOffset+realSize-1);
-  guchar mark[realSize];
-  int i;
+  guint8* mark=(guint8*)malloc(realSize*sizeof(guint8*));
+  guint i;
   for(i=0;i<realSize;i++){
     mark[i]=0xFF;
   }
   diskWriteData(ADDR_FREE_SPACE_VECTOR+freeOffset,&mark,realSize);
-
+  free(mark);
 }
 
 void FreeSpaceUnmark(guint realSize,guint64 addrFile){

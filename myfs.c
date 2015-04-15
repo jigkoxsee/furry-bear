@@ -218,6 +218,7 @@ void putFileDataToDisk(guint fileSize,const char* src,guint64 addrFile){
   // data
   guchar* data=readFileN((char*)src,0,fileSize);
   diskWriteData(addrFile+ATIME_SIZE+SIZE_SIZE,(void*)data,fileSize);
+  free(data);
 }
 
 guint replaceKeyWithNewDataSize(const gchar *key,guint realBlockSize,
