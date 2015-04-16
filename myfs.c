@@ -12,30 +12,31 @@ extern gboolean newDisk[4];
 extern char * diskFileName[4];
 //extern FILE * diskFile[4];
 extern int diskCount;
-//extern guint64 diskSize;
 extern int diskMode;
 extern guint fileCounter;
 extern GTree* fileMap;
 extern GList* fileMapHole;
 
+guint64 DISK_SIZE;
 
 
 const guint ADDR_FILE_COUNTER=17; // 4B
 const guint ADDR_FREE_SPACE_VECTOR=21; // 1/8 B
 const guint KEY_SIZE=8;
+const guint FPTR_SIZE=8;
 const guint ATIME_SIZE=4;
-const guint SIZE_SIZE=4;
+const guint FILE_SIZE=4;
 // TODO : Need function to calculate this.
 guint ADDR_FILE_MAP=121000000; // 12B*N
 // Name = 8B
-// fPTR = 4B
+// fPTR = 8B
 
 // TODO : function to set this value
 guint ADDR_DATA=200000000; // 16B+X
 // Atime = 4B
 // Size = 4B
 
-guint64 halfOffset;
+//guint64 halfOffset;
 
 struct SearchData{
   gchar* key;
@@ -49,7 +50,7 @@ typedef struct SearchData SearchData;
 struct FMAP{
   //gchar* key;
   guint fileNo;
-  guint fptr;
+  guint64 fptr;
 };
 typedef struct FMAP FMAP;
 
@@ -107,9 +108,32 @@ void writeFile(char * filename,char * fileData){
   fclose(writeptr);
 }
 //-----------
-void diskWriteData(guint64 addr,void* data,guint size){
+
+// Mirror Read with from newDisk==FALSE
+
+void stripWrite(){
+
+}
+// Mirror
+void mirrorWrite(int no,void* data,guint64 addr,guint size){
+  editFile(diskFileName[no],data,addr,size);
+  editFile(diskFileName[no+1],data,addr,size);
+}
+
+void diskWriteData(void* data,guint64 addr,guint size){
   // TODO 4 disk mng
-  editFile(diskFileName[0],data,addr,size);
+  mirrorWrite(0,data,addr,size); //RAID 1
+  /*
+  // TODO : what about cross between 2 disk
+  guint newSize=DISK_SIZE-addr;
+  if(addr<DISK_SIZE){
+    mirrorWrite(0,data,addr,newSize);
+  }else{
+    guint64 newAddr=addr-DISK_SIZE;
+    void* newData=data+newSize;
+    mirrorWrite(2,newData,newAddr,size-newSize);
+  }
+  */
 }
 //-----------
 
@@ -157,7 +181,7 @@ void FreeSpaceMark(guint realSize,guint64 freeOffset){
   for(i=0;i<realSize;i++){
     mark[i]=0xFF;
   }
-  diskWriteData(ADDR_FREE_SPACE_VECTOR+freeOffset,mark,realSize);
+  diskWriteData(mark,ADDR_FREE_SPACE_VECTOR+freeOffset,realSize);
   free(mark);
 }
 
@@ -176,25 +200,25 @@ void FreeSpaceUnmark(guint realSize,guint64 addrFile){
   for(i=0;i<realBlockSize;i++){
     mark[i]=0;
   }
-  diskWriteData(ADDR_FREE_SPACE_VECTOR+allocOffset,&mark,realBlockSize);
+  diskWriteData(&mark,ADDR_FREE_SPACE_VECTOR+allocOffset,realBlockSize);
 
 }
 
 // TODO : if fileCounter need to pass
-void FMapAdd(const gchar *key,guint fptr){
-  // TODO : if it has hole insert in hole first
+void FMapAdd(const gchar *key,guint64 fptr){
+  // if it has hole insert in hole first
   GList* hole;
   guint64 fmAddr=fileCounter;
   hole=g_list_first(fileMapHole);
   if(hole){// Have hole
     fmAddr=*((guint64*)hole->data);
+    fileMapHole=g_list_remove(fileMapHole,hole);
   }
   // Insert to map=8B+4B
   // key
-  editFile(diskFileName[0],(void*)key,(guint64)ADDR_FILE_MAP+(fmAddr*12),8);
+  diskWriteData((void*)key,ADDR_FILE_MAP+(fmAddr*12),KEY_SIZE);
   // fptr
-  editFile(diskFileName[0],&fptr,(guint64)ADDR_FILE_MAP+(fmAddr*12)
-      +KEY_SIZE,4);
+  diskWriteData(&fptr,ADDR_FILE_MAP+(fmAddr*12)+KEY_SIZE,FPTR_SIZE);
 
   FMAP* fm = (FMAP*) malloc(sizeof(FMAP));
   fm->fileNo=fmAddr;
@@ -210,7 +234,7 @@ void FMapAdd(const gchar *key,guint fptr){
   g_tree_insert(fileMap, newKey, fm);
 
   //printf("Increase file counter\n");
-  diskWriteData(ADDR_FILE_COUNTER,&fileCounter,SIZE_SIZE);
+  diskWriteData(&fileCounter,ADDR_FILE_COUNTER,FILE_SIZE);
 
 }
 
@@ -219,18 +243,21 @@ void FMapRemove(const gchar *key,guint fileNo){
   // in mem
   g_tree_remove(fileMap,key);
   fileCounter--;
-  editFile(diskFileName[0],&fileCounter,ADDR_FILE_COUNTER,SIZE_SIZE);
+  diskWriteData(&fileCounter,ADDR_FILE_COUNTER,FILE_SIZE);
 
   // in disk
-  // TODO ?? - Compact file map
   guint64 fileMapAddr=ADDR_FILE_MAP+(fileNo)*12;
-  guint8* blank[KEY_SIZE+SIZE_SIZE];
+  guint8* blank[KEY_SIZE+FILE_SIZE];
   int i;
-  for (i = 0; i < (KEY_SIZE+SIZE_SIZE); ++i)
+  for (i = 0; i < (KEY_SIZE+FILE_SIZE); ++i)
   {
     blank[i]=0;
   }
-  editFile(diskFileName[0],blank,fileMapAddr,KEY_SIZE+SIZE_SIZE);
+  diskWriteData(blank,fileMapAddr,KEY_SIZE+FILE_SIZE);
+  // TODO : add hole to fileMapHole
+  guint64* fmHole=(guint64*) malloc(sizeof(guint64));
+  *fmHole=fileNo;
+  fileMapHole=g_list_prepend(fileMapHole,fmHole);
 
 }
 
@@ -263,7 +290,7 @@ void formatDisk(FILE * diskFile,guint64 diskSize,int* mode){
   header[16]=(*mode);
   printf("----%s----\n",header);
   // TODO : for test purpose
-  //editFile(diskName,header,0,17);
+  //(diskName,header,0,17);
   fseek ( diskFile, 0, SEEK_SET );
   fwrite(header,1,17,diskFile);
 }
@@ -380,8 +407,13 @@ void checkDisk(char* diskArg[]){
       //printf("Error, Use same disk more than one.\n");      
     }
   }
+  DISK_SIZE=diskSize[0];
 
   diskOrdering(diskFile,diskSize[0],diskFileNameTmp);
+
+  // Calculate ADDR
+
+
 }
 
 gint getFileSize(FILE *ptr){
@@ -393,7 +425,7 @@ gint getFileSize(FILE *ptr){
 
 gboolean iter_all(gpointer key, gpointer value, gpointer data) {
   //printf("%d : %s, %d\n",key, key, *(guint*)value);
-  printf("%d: %s, %d\n", ((FMAP*)value)->fileNo, (char*)key, ((FMAP*)value)->fptr);
+  printf("%d: %s, %"G_GUINT64_FORMAT"\n", ((FMAP*)value)->fileNo, (char*)key, ((FMAP*)value)->fptr);
   return FALSE;
 }
 
@@ -431,7 +463,7 @@ void FMapLoad(){
     fread(key,KEY_SIZE,1,disk0);
     key[8]=0;
     //printf("%s\t",key);
-    fread(&(fm->fptr),SIZE_SIZE,1,disk0);
+    fread(&(fm->fptr),FILE_SIZE,1,disk0);
     //printf("%d\t",fm->fptr);
     fm->fileNo=i;
 
@@ -473,7 +505,7 @@ void getFileMeta(guint addr,guint* size,guint *atime){
     *atime=BytesArrayToGuint(buffer);
   }
   if(size!=NULL){
-    buffer=readFileN(diskFileName[0],addr+ATIME_SIZE,SIZE_SIZE);
+    buffer=readFileN(diskFileName[0],addr+ATIME_SIZE,FILE_SIZE);
     *size=BytesArrayToGuint(buffer);
   }
 }
@@ -492,12 +524,12 @@ void putFileDataToDisk(guint fileSize,const char* src,guint64 addrFile){
   printf("Insert Data\n");
   guint timeUnix=(guint)g_date_time_to_unix(g_date_time_new_now_local());
   //printf("UNIX %"G_GUINT32_FORMAT"\n",timeUnix);
-  diskWriteData(addrFile,&timeUnix,ATIME_SIZE);
+  diskWriteData(&timeUnix,addrFile,ATIME_SIZE);
   // size
-  diskWriteData(addrFile+ATIME_SIZE,&fileSize,SIZE_SIZE);
+  diskWriteData(&fileSize,addrFile+ATIME_SIZE,FILE_SIZE);
   // data
   guchar* data=readFileN((char*)src,0,fileSize);
-  diskWriteData(addrFile+ATIME_SIZE+SIZE_SIZE,(void*)data,fileSize);
+  diskWriteData((void*)data,addrFile+ATIME_SIZE+FILE_SIZE,fileSize);
   free(data);
 }
 
@@ -522,7 +554,7 @@ guint replaceKeyWithNewDataSize(const gchar *key,guint realBlockSize,
   // Change file map - fptr
   fileMeta->fptr=addrFile;
   g_tree_replace (fileMap,(gchar*)key,fileMeta);
-  editFile(diskFileName[0],&addrFile,(guint64)ADDR_FILE_MAP+(fileMeta->fileNo*12)
+  diskWriteData(&addrFile,(guint64)ADDR_FILE_MAP+(fileMeta->fileNo*12)
       +KEY_SIZE,4);
 
   return 0;
@@ -542,18 +574,18 @@ guint myPut(gchar *key,gchar *src){
   guint fileSize=getFileSize(filePTR);
   fclose(filePTR);
   printf(">> %d\n",fileSize);
-  guint realBlockSize=(ATIME_SIZE+SIZE_SIZE+fileSize)/8;
+  guint realBlockSize=(ATIME_SIZE+FILE_SIZE+fileSize)/8;
 
   // check duplicate key
-  guint addrFile=0;
+  guint64 addrFile=0;
   FMAP* existingFileMeta=checkExistingKey(key);
   if(existingFileMeta){
     printf("Duplicate Key\n");
-    guint existingFileAddr=existingFileMeta->fptr;
+    guint64 existingFileAddr=existingFileMeta->fptr;
     // read file meta
     guint existSize;
     getFileMeta(existingFileAddr,&existSize,NULL);
-    printf("Existing addr : %d\n", existingFileAddr);
+    printf("Existing addr : %"G_GUINT64_FORMAT"\n", existingFileAddr);
     printf("Existing size : %d\n", existSize); 
     printf("New size : %d\n", fileSize);//realBlockSize
     // if same size => replace data in same addr
@@ -562,7 +594,7 @@ guint myPut(gchar *key,gchar *src){
       addrFile=existingFileAddr;
     }else{
       // unmark old addr
-      guint existRealSize=(ATIME_SIZE+SIZE_SIZE+existSize);
+      guint existRealSize=(ATIME_SIZE+FILE_SIZE+existSize);
       FreeSpaceUnmark(existRealSize,existingFileAddr);
       return replaceKeyWithNewDataSize(key,realBlockSize,fileSize,src,existingFileMeta);
     }   
@@ -624,7 +656,7 @@ guint myRemove(gchar* key){
     guint64 fileAddr=fileMeta->fptr;
     getFileMeta(fileAddr,&fileSize,NULL);
     printf("Size: %d\n",fileSize);
-    guint realSize=fileSize+ATIME_SIZE+SIZE_SIZE;
+    guint realSize=fileSize+ATIME_SIZE+FILE_SIZE;
 
     // Remove file map
     FMapRemove(key,fileMeta->fileNo);
@@ -647,7 +679,7 @@ guint myGet(gchar *key,gchar *outpath){
     
     // Update Atime when this fn is call
     guint atime=(guint)g_date_time_to_unix(g_date_time_new_now_local());
-    diskWriteData(fileAddr,&atime,ATIME_SIZE);
+    diskWriteData(&atime,fileAddr,ATIME_SIZE);
 
     guint fileSize;
     getFileMeta(fileAddr,&fileSize,&atime);
@@ -664,7 +696,7 @@ guint myGet(gchar *key,gchar *outpath){
     // writing
     // TODO : FN-DiskPrepare
     // TODO : FN-DiskReadN
-    guint8* buffer=readFileN(diskFileName[0],fileAddr+ATIME_SIZE+SIZE_SIZE,fileSize);
+    guint8* buffer=readFileN(diskFileName[0],fileAddr+ATIME_SIZE+FILE_SIZE,fileSize);
     // TODO : what fwrite do if data size is shorter than count(param3)
     
     if(fwrite(buffer,1/*byte*/,fileSize,fileOut)!=fileSize)
