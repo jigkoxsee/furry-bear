@@ -7,14 +7,18 @@
 #include "mydisk.c"
 #include "freespace.c"
 
+char * diskFileNameTmp[4];
+extern gboolean newDisk[4];
 extern char * diskFileName[4];
-extern FILE * diskFile[4];
+//extern FILE * diskFile[4];
 extern int diskCount;
-extern guint64 diskSize;
+//extern guint64 diskSize;
 extern int diskMode;
 extern guint fileCounter;
 extern GTree* fileMap;
 extern GList* fileMapHole;
+
+
 
 const guint ADDR_FILE_COUNTER=17; // 4B
 const guint ADDR_FREE_SPACE_VECTOR=21; // 1/8 B
@@ -58,58 +62,135 @@ guint getFileCounter(){
 }
 
 // TODO : Initiate disk in a first time of use
-void formatDisk(int diskNo,guint64 diskSize){
-  char numberOfDiskSize[17];
-  sprintf(numberOfDiskSize,"%"G_GUINT64_FORMAT "",diskSize);
-  int strSize=strlen(numberOfDiskSize);
-  memmove(numberOfDiskSize+(16-strSize),numberOfDiskSize,strSize);
-  memset(numberOfDiskSize,'0',16-strSize);
+void formatDisk(FILE * diskFile,guint64 diskSize,int* mode){
+  char header[17];
+  sprintf(header,"%"G_GUINT64_FORMAT "",diskSize);
+  int strSize=strlen(header);
+  memmove(header+(16-strSize),header,strSize);
+  memset(header,'0',16-strSize);
   // TODO change byte 17 to RAID mode 1, 0
-  numberOfDiskSize[16]='0'+diskNo;
-  printf("----%s----",numberOfDiskSize);
-  editFile(diskFileName[diskNo],numberOfDiskSize,0,17);
+  header[16]=(*mode);
+  printf("----%s----\n",header);
+  // TODO : for test purpose
+  //editFile(diskName,header,0,17);
+  fseek ( diskFile, 0, SEEK_SET );
+  fwrite(header,1,17,diskFile);
 }
 
 
-int getDiskSize(int i,char * fileName){
+guint64 getDiskSize(FILE* disk,char * fileName){
   guint64 filelen;
-  diskFile[i] = fopen(fileName,"rb+");  // Open file in binary
-  fseek(diskFile[i],0,SEEK_END); // Seek file to the end
-  filelen = ftell(diskFile[i]); // Get number of current byte offset
+  fseek(disk,0,SEEK_END); // Seek file to the end
+  filelen = ftell(disk); // Get number of current byte offset
   return filelen;
 }
 
-int checkFirstSection(int i, guint64 diskSize){
+int checkFirstSection(FILE* diskFile, guint64 diskSize){
   guint64 filelen;
   char buffer[16]; // 16*4 = 64
-  fseek ( diskFile[i], 0, SEEK_SET );
-  fread(buffer,16,1,diskFile[i]); // Read entire file // TODO what all this param?
+  fseek ( diskFile, 0, SEEK_SET );
+  fread(buffer,1,16,diskFile); // Read entire file // TODO what all this param?
   filelen = atoi(buffer);
-  printf("check File: %" G_GUINT64_FORMAT "\n",filelen);
-  fclose(diskFile[i]);
-  return filelen==diskSize;
+  
+  if(filelen==diskSize){
+    fread(buffer,1,1,diskFile);
+    return buffer[0];
+  }
+  return -1; // -1 - Didnt format yet
+}
+
+
+int mirrorNo=0;
+int stripNo=2;
+
+// 2 disk
+int diskOrdering1(int* mode, char* _diskFileName){
+  *mode=1;
+  return mirrorNo++;
+}
+
+int diskOrdering10(int* mode, char* _diskFileName){
+  if((*mode)==1&&mirrorNo<=1){ // Mirror
+    diskFileName[mirrorNo]=_diskFileName;
+    return mirrorNo++; //return 0,1
+
+  }else if((*mode)==0&&stripNo<=3){ // strip
+    diskFileName[stripNo]=_diskFileName;
+    return stripNo++; //return 2,3
+
+  }else if((*mode)==-1){
+  if(mirrorNo<=1){
+        *mode=1;
+        return mirrorNo++;
+      }else{
+        *mode=0;
+        return stripNo++;
+      }
+  }else{ // if have disk in mirror/strip mode more than 2 disk
+    // eg 1,1,1,0
+    printf("Disk RAID problem\n");
+    exit(1);
+  }
+}
+
+void diskOrdering(FILE * diskFile[],guint64 diskSize,char* diskName[]){
+  int i;
+  for (i = 0; i < diskCount; ++i)
+  {
+    int mode,modeInFile,orderNum;
+    modeInFile=checkFirstSection(diskFile[i],diskSize);
+    mode=modeInFile;
+    printf("mode : %d\n",mode);
+
+    if(diskMode==1)
+      orderNum=diskOrdering1(&mode,diskName[i]);
+    else if(diskMode==10)
+      orderNum=diskOrdering10(&mode,diskName[i]);
+
+    printf("DiskMode : %d\n",mode);
+    printf("orderNo. : %d\n",orderNum);
+    newDisk[orderNum]=FALSE;
+    if (modeInFile<0){
+      printf("Initiate new disk\n");
+      newDisk[orderNum]=TRUE;
+      formatDisk(diskFile[i],diskSize,&mode);
+    }
+    fclose(diskFile[i]);
+  }
 }
 
 void checkDisk(char* diskArg[]){
-  int i=0;
-  for(i=0;i<diskCount;i++){
-    // TODO : Detect is disk in system, format disk
-    // TODO : how to deal when disk order in wrong , Add disk order number to disk header
-    // TODO : Detect missing,corrupt disk
-    // TODO : Detect new disk
-    // TODO (BONUS) : Redistribute file
-    diskFileName[i]=diskArg[i+1];
-    printf("D%d : %s\n",i,diskFileName[i]);
+  int i;
+  guint64 diskSize[diskCount];
+  FILE * diskFile[diskCount];
+
+  // Get every disk size
+  for(i=0;i<diskCount;++i){
+    diskFileNameTmp[i]=diskArg[i+1];
+    //printf("D%d : %s\n",i,diskFileNameTmp[i]);
+    
+    // [x] Detect is disk in system, format disk
+    // [X] TODO : how to deal when disk order in wrong , Add disk order number to disk header
+    // [] TODO : Detect new disk
+    // [] TODO (BONUS) : Redistribute file
+    // [] TODO : Detect missing,corrupt disk
+    diskFile[i] = fopen(diskFileNameTmp[i],"rb+");  // Open file in binary   
     // Check
-    diskSize = getDiskSize(i,diskFileName[i]);
-    printf("DiskSize : %" G_GUINT64_FORMAT "\n",diskSize);
-    if (checkFirstSection(i,diskSize)){
-      printf("\tOK!!\n");
-    }else{
-      printf("Initiate disk\n");
-      formatDisk(i,diskSize);
+    
+    diskSize[i] = getDiskSize(diskFile[i],diskFileNameTmp[i]);
+    printf("D%d Size : %" G_GUINT64_FORMAT "\n",i,diskSize[i]);
+
+    if(i>0){
+      if(diskSize[i-1]!=diskSize[i]){
+        printf("Error, Disk didnt have a same size.\n");
+        exit(1);
+      }
+      // TODO : check is use same disk more than one(not necessary?)
+      //printf("Error, Use same disk more than one.\n");      
     }
   }
+
+  diskOrdering(diskFile,diskSize[0],diskFileNameTmp);
 }
 
 gint getFileSize(FILE *ptr){
@@ -256,10 +337,9 @@ guint replaceKeyWithNewDataSize(const gchar *key,guint realBlockSize,
   return 0;
 }
 
-guint myPut(const gchar *key,const gchar *src){
+guint myPut(gchar *key,gchar *src){
   guint8 replaceMode=0;
   // check key size ==8
-  // TODO : Check Key accept only [a-zA-Z]
   printf("File Map add\n");
   if(strlen(key)!=8){
     return ENAMETOOLONG;
@@ -322,7 +402,7 @@ guint myPut(const gchar *key,const gchar *src){
   return 0;
 }
 
-guint myStat(const gchar* key,guint* size,guint *atime){
+guint myStat(gchar* key,guint* size,guint *atime){
   //printf("\nStat Searching\n");
   gpointer value = g_tree_search(fileMap, (GCompareFunc)finder, key);
   //printf("\nData :%d\n",value);
@@ -338,13 +418,12 @@ guint myStat(const gchar* key,guint* size,guint *atime){
 }
 
 // TODO - not work properly
-guint myRemove(const gchar* key){
+guint myRemove(gchar* key){
   // TODO - file is using => EAGAIN
 
-  // TODO - check key length
+  // Check key length
   if(strlen(key)!=8)
     return ENAMETOOLONG;
-  // TODO - Check key accept only [a-zA-Z] (No need?)
 
   FMAP* fileMeta=checkExistingKey(key);
   if(fileMeta==0)
@@ -370,7 +449,6 @@ guint myGet(gchar *key,gchar *outpath){
   if(strlen(key)!=8){
     return ENAMETOOLONG;
   }
-  // Check accept only [a-zA-Z]
   
   FMAP* existingFile=checkExistingKey(key);
   if(existingFile){
@@ -447,8 +525,7 @@ guint mySearch(gchar* key,gchar* outpath){
   sData.status=FALSE;
   sData.result=NULL;
   sData.size=0;
-  
-  // TODO : check accept only [a-zA-Z]
+
   // Search
   g_tree_foreach(fileMap, (GTraverseFunc)iterAllPrefixMatch, &sData);
   sData.result=g_list_reverse(sData.result);
@@ -462,7 +539,6 @@ guint mySearch(gchar* key,gchar* outpath){
   resCSV->str[resCSV->len-1]=0xA; // change last comman
   //printf("Result : %s\n",resCSV->str);
   
-  // if real disk not enough space return ENOSPC
 
   // Write file in CSV format
   FILE* fileOut;
@@ -470,7 +546,9 @@ guint mySearch(gchar* key,gchar* outpath){
   // if outpath is busy (fopen fail) return EAGAIN
   if(fileOut==NULL)
     return EAGAIN;
-  fwrite(resCSV->str,1,resCSV->len,fileOut);
+  if(fwrite(resCSV->str,1,resCSV->len,fileOut)!=resCSV->len)
+    return ENOSPC;
+  // if real disk not enough space return ENOSPC
   fclose(fileOut);
 
   return 0;

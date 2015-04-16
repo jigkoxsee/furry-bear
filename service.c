@@ -25,9 +25,9 @@
 guint getFileCounter();
 
 
-
 char * diskFileName[4];
-FILE * diskFile[4];
+gboolean newDisk[4];
+//FILE * diskFile[4];
 int diskCount;
 guint64 diskSize;
 int diskMode=1;
@@ -42,8 +42,7 @@ GList* fileMapHole;
 // TODO
 // TODO
 // TODO : Need to change Addr data type to guint64
-// TODO
-// TODO
+// TODO// TODO
 // TODO
 
 static gboolean on_handle_get (
@@ -71,7 +70,7 @@ static gboolean on_handle_put (
     /** Your code for Put method here **/
     printf("PUT: %s FROM %s\n",key,src);
 
-    guint err = myPut(key,src);
+    guint err = myPut((gchar*)key,(gchar*)src);
 //    guint err = EAGAIN;
     /** End of Put method execution, returning values **/
 
@@ -92,7 +91,7 @@ static gboolean on_handle_remove (
     guint err = 0;
     /** End of Get method execution, returning values **/
     printf("REMOVE: %s\n",key);
-    err=myRemove(key);
+    err=myRemove((gchar*)key);
 
     rfos_complete_remove(object, invocation, err);
     return TRUE;
@@ -123,7 +122,7 @@ static gboolean on_handle_stat (
     guint err = 0;
     printf("STAT: %s\n",key);
     printf("FileCounter : %d\n",fileCounter);
-    err = myStat(key,&size,&atime);
+    err = myStat((gchar*)key,&size,&atime);
     /** End of Get method execution, returning values **/
     rfos_complete_stat(object, invocation,size,(guint64)atime,err);
     return TRUE;
@@ -154,29 +153,38 @@ int main (int argc,char* argv[])
 {
   printf("Disk count : %d\n",argc-1);
 
-  if(argc<3){
-    printf("Error need 2+ disk\n");
+  if(argc<2){
+    printf("Error, Need atleast 1 disk\n");
     return 1;
-  }else{
+  }else if(argc<=5){
     diskMode=10;
+  }else{
+    printf("Error, Unsupport more than 4 disks\n");
+    return 1;
   }
 
   // Check disk
   // TODO is this gonna take more than 3 min?
   diskCount=argc-1;
   checkDisk(argv);
+  printf("------CheckDisk-Finish------\n");
+  int i;
+  for (i = 0; i < diskCount; ++i)
+  {
+      printf("D%d %s\n",i,diskFileName[i]);
+  }
 
-  fileCounter=getFileCounter();
-  printf("\n%u\n",fileCounter);
+//  fileCounter=getFileCounter();
+//  printf("\n%u\n",fileCounter);
 
   // load file map into memory
-  FMapLoad();
+//  FMapLoad();
 
-//  guint fcounter=0;
-//  editFile("disk1.img",&fcounter,ADDR_FILE_COUNTER,4);
+    //  guint fcounter=0;
+    //  editFile("disk1.img",&fcounter,ADDR_FILE_COUNTER,4);
 
   // For test purpose
-  g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
+//  g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
   // TODO : Create thread to return EBUSY
 
   printf("RFOS Ready\n");
