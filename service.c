@@ -174,17 +174,17 @@ int main (int argc,char* argv[])
       printf("D%d %s\n",i,diskFileName[i]);
   }
 
-//  fileCounter=getFileCounter();
-//  printf("\n%u\n",fileCounter);
+  fileCounter=getFileCounter();
+  printf("\n%u\n",fileCounter);
 
   // load file map into memory
-//  FMapLoad();
+  FMapLoad();
 
     //  guint fcounter=0;
     //  editFile("disk1.img",&fcounter,ADDR_FILE_COUNTER,4);
 
   // For test purpose
-//  g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
+  g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
   // TODO : Create thread to return EBUSY
 
   printf("RFOS Ready\n");

@@ -12,7 +12,7 @@ extern int diskCount;
 extern guint64 diskSize;
 extern int diskMode;
 
-guint64 halfOffset; // 1GB
+ // 1GB
 //
 // D0,D1 = addr = 200M+
 // D2,D3 = addr = 17+
@@ -45,9 +45,10 @@ guchar* diskReadN(guint addr,guint64 size){
 // TODO return value
 // 1 success
 // 0 fail
+/*
 void diskWriteData(guint64 addr,void* data,guint size){
   // TODO 4 disk mng
   editFile(diskFileName[0],data,addr,size);
-}
+}*/
 
 #endif
