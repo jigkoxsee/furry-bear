@@ -21,7 +21,6 @@ guint64 DISK_SIZE;
 
 const guint HEADER_SIZE=17; // disk size (16B) + mode (1B)
 
-
 const guint64 ADDR_FILE_COUNTER=17; // 4B
 const guint64 ADDR_FREE_SPACE_VECTOR=21; // 1/8 B
 const guint KEY_SIZE=8;
@@ -168,6 +167,7 @@ void diskWriteData(void* data,guint64 addr,guint size){
     mirrorWrite(1,data1,addr1,size1);
 
   }
+
   // second
   else{
     addr=addr-DISK_SIZE+HEADER_SIZE;
@@ -234,27 +234,9 @@ guint8* diskReadData(guint64 addr,guint size){
     // merge 2 data
     guint8* data=(guint8*) malloc(size*sizeof(guint8));
 
-    //printf("data %d\n", data);
     memmove(data,data0,size0);
-    //printf("data+size0 %d\n", data+size0);
     memmove(data+size0,data1,size1);
-/*
-    printf("data %x\n", data[0]);
-    printf("data %x\n", data[1]);
-    printf("data %x\n", data[2]);
-    printf("data %x\n", data[3]);
-    printf("data %x\n", data[4]);
-    printf("data %x\n", data[5]);
-*/
 
-    // for test
-
-    /*
-    FILE * writeptr;
-    writeptr = fopen(filename,"wb");
-    fwrite(data,1,size,writeptr);
-    fclose(writeptr);
-    */
     return data;
 
 
@@ -277,26 +259,31 @@ gint64 FreeSpaceFind(guint realSize){
 
   // Search
   guint64 count=0;
-  guint64 start;
+  guint64 start=0;
   guint64 i;
   for(i=0;i<FS_SIZE;i++){
+    /*
     if(count==0){
       start=i;
     }
-    if(count==realSize){
-      break;
-    }
+    */
     if(buffer[i]==0){
       count++;
+      if(count==realSize){
+        break;
+      }
     }else{
       count=0;
-    }
-    // no free space enough
-    if(i==FS_SIZE-1){
-      printf("Error Not enough space (%"G_GUINT64_FORMAT")",ADDR_FREE_SPACE_VECTOR+FS_SIZE-1);
-      return -1;
+      start=i;
+      printf("FS find reset @"G_GUINT64_FORMAT"\n"+ADDR_FREE_SPACE_VECTOR);
     }
   }
+  // no free space enough
+  if(i==FS_SIZE){
+    printf("Error Not enough space (%"G_GUINT64_FORMAT")",ADDR_FREE_SPACE_VECTOR+FS_SIZE-1);
+    return -1;
+  }
+
   printf(">>>%"G_GUINT64_FORMAT"@%"G_GUINT64_FORMAT" (%d)\n",
       count,start,realSize);
   return start;
@@ -729,9 +716,25 @@ void putFileDataToDisk(guint fileSize,const char* src,guint64 addrFile){
   // size
   diskWriteData(&fileSize,addrFile+ATIME_SIZE,FILE_SIZE);
   // data
-  guchar* data=FileReadN((char*)src,0,fileSize);
-  diskWriteData((void*)data,addrFile+ATIME_SIZE+FILE_SIZE,fileSize);
-  free(data);
+  guchar* data;
+  if(fileSize>(guint)268435456){ // 256MB = 268435456
+
+    guint64 conAddr=addrFile+ATIME_SIZE+FILE_SIZE;
+    guint sizePerRound=268435456;
+
+    int i,iter=fileSize/(268435456);
+    for (i = 0; i < iter; ++i)
+    {
+      data=FileReadN((char*)src,0,sizePerRound);
+      diskWriteData((void*)data,conAddr,sizePerRound);
+      free(data);
+      conAddr+=sizePerRound;
+    }
+  }else{
+    data=FileReadN((char*)src,0,fileSize);
+    diskWriteData((void*)data,addrFile+ATIME_SIZE+FILE_SIZE,fileSize);
+    free(data);
+  }
 }
 
 guint replaceKeyWithNewDataSize(const gchar *key,guint realBlockSize,
@@ -821,12 +824,12 @@ guint myPut(gchar *key,gchar *src){
   // Insert file data=atime,size,data
   putFileDataToDisk(fileSize,src,addrFile);
 
-  // mark
-  FreeSpaceMark(realBlockSize,freeOffset);
-
-  // Insert map
-  if(replaceMode==0) // if replace dont add new file map
+  if(replaceMode==0){ // if replace dont add new file map
+    // mark
+    FreeSpaceMark(realBlockSize,freeOffset);
+    // Insert map
     FMapAdd(key,addrFile);
+  }
   return 0;
 }
 
@@ -899,15 +902,37 @@ guint myGet(gchar *key,gchar *outpath){
       return EAGAIN;
 
     // writing
-    // TODO : FN-DiskPrepare
-    // TODO : FN-DiskReadN
-    guint8* buffer=diskReadData(fileAddr+ATIME_SIZE+FILE_SIZE,fileSize);
+    guint8* buffer;
+    guint writedSize=0;
 
-    //guint8* buffer=FileReadN(diskFileName[0],fileAddr+ATIME_SIZE+FILE_SIZE,fileSize);
-    // TODO : what fwrite do if data size is shorter than count(param3)
+    if(fileSize>(guint)(268435456)){ // 256MB = 268435456
+
+      guint64 conAddr=fileAddr+ATIME_SIZE+FILE_SIZE;
+      guint sizePerRound=268435456;
+      guint readSize=0;
+
+      int i,iter=fileSize/(268435456);
+      for (i = 0; i < iter; ++i)
+      {
+        if(fileSize-readSize<sizePerRound){
+          sizePerRound=fileSize-readSize;
+        }
+        buffer=diskReadData(conAddr,sizePerRound);
+        writedSize+=fwrite(buffer,1/*byte*/,sizePerRound,fileOut);
+        free(buffer);
+        conAddr+=sizePerRound;
+        readSize+=sizePerRound;
+      }
+    }else{
+      buffer=diskReadData(fileAddr+ATIME_SIZE+FILE_SIZE,fileSize);
+      if(fwrite(buffer,1/*byte*/,fileSize,fileOut)!=fileSize){
+        free(buffer);
+        return ENOSPC;
+      }
+      free(buffer);
+    }
+
     
-    if(fwrite(buffer,1/*byte*/,fileSize,fileOut)!=fileSize)
-      return ENOSPC;
     
     fclose(fileOut);
     // TODO : FN-DiskClose
@@ -981,7 +1006,6 @@ guint mySearch(gchar* key,gchar* outpath){
     return ENOSPC;
   // if real disk not enough space return ENOSPC
   fclose(fileOut);
-
   return 0;
 
 }
