@@ -54,7 +54,7 @@ struct FMAP{
 };
 typedef struct FMAP FMAP;
 
-guint8* FileReadN(char * fileName,guint offset,guint size){
+guint8* FileReadN(char * fileName,guint64 offset,guint size){
   FILE* fileptr;
   guint8* buffer;
 
@@ -82,7 +82,7 @@ guint8 * FileRead(char * fileName){
   printf("filelen : %" G_GUINT64_FORMAT "\n",filelen);
 
   buffer = (guint8 *) malloc((filelen)*sizeof(guint8)); // Allocation memory for read file
-  // TODO : Avoid allocate ahead (allocate only need)
+  // TODO : Avoid (large) allocate ahead (allocate only need)
   fread(buffer,filelen,1,fileptr); // Read entire file // TODO what all this param?
   fclose(fileptr); // close file
   return buffer;
@@ -94,9 +94,7 @@ void editFile(char * filename,void * data, guint64 byteOffset,guint64 size){
   writeptr = fopen(filename,"rb+");
   fseek ( writeptr, byteOffset, SEEK_SET );
   // TODO - test write
-  //fwrite(data,size,1,writeptr);
   fwrite(data,1,size,writeptr);
-  //fprintf(writeptr,"%s",data); // TODO didnt test
   fclose(writeptr);
 
 }
@@ -117,24 +115,120 @@ void stripWrite(){
 // Mirror
 void mirrorWrite(int no,void* data,guint64 addr,guint size){
   editFile(diskFileName[no],data,addr,size);
+
+  if(diskCount>1)
   editFile(diskFileName[no+1],data,addr,size);
+  // TODO : TMP Mirror 4disk
+  if(diskCount>2)
+    editFile(diskFileName[no+2],data,addr,size);
+  if(diskCount>3)
+    editFile(diskFileName[no+3],data,addr,size);
 }
 
 void diskWriteData(void* data,guint64 addr,guint size){
-  // TODO 4 disk mng
-  mirrorWrite(0,data,addr,size); //RAID 1
-  /*
-  // TODO : what about cross between 2 disk
-  guint newSize=DISK_SIZE-addr;
-  if(addr<DISK_SIZE){
-    mirrorWrite(0,data,addr,newSize);
-  }else{
-    guint64 newAddr=addr-DISK_SIZE;
-    void* newData=data+newSize;
-    mirrorWrite(2,newData,newAddr,size-newSize);
+  // 4 disk mng
+
+  // first
+  if(addr+size<DISK_SIZE){
+    mirrorWrite(0,data,addr,size);
   }
-  */
+  // cross 2 disk
+  else if(addr<DISK_SIZE){
+    guint size0,size1;
+    guint64 addr0,addr1;
+    void *data0,*data1;
+    // 0
+    size0=DISK_SIZE-addr;
+    addr0=addr;
+    data0=data;
+    mirrorWrite(0,data0,addr0,size0);
+
+    // 1
+    size1=size-size0;
+    addr1=17;
+    data1=data+size0;
+    mirrorWrite(1,data1,addr1,size1);
+
+  }
+  // second
+  else{
+    addr=addr-DISK_SIZE+17;
+    mirrorWrite(1,data,addr,size);
+  }
+
+
+
 }
+
+guint8* diskRead(int diskNo,guint64 addr,guint size){
+  FILE* fileptr;
+  guint8* buffer;
+
+  fileptr = fopen(diskFileName[diskNo],"rb");  // Open file in binary
+  fseek(fileptr,addr,SEEK_SET); // Seek file to the end
+
+  buffer = (guint8*) malloc((size)*sizeof(guint8)); // Allocation memory for read file
+  // TODO : Avoid allocate ahead (allocate only need)
+  fread(buffer,size,1,fileptr); // Read file
+  fclose(fileptr); // close file
+  return buffer; 
+}
+
+guint8* mirrorRead(int diskGroup,guint64 addr,guint size){
+  // Implement strip read
+  if(diskGroup==0){ // in first {0,1}
+    if(newDisk[0]==FALSE){  // if disk 0 is not new (sync)
+      return diskRead(0,addr,size);
+    }else{
+      return diskRead(1,addr,size);
+    }
+  }
+
+  if(diskGroup==1){ // in second {2,3}
+    if(newDisk[2]==FALSE){ // if disk 2 is not new (sync)
+      return diskRead(2,addr,size);
+    }else{
+      return diskRead(3,addr,size);
+    }
+  }
+  
+  return NULL;
+}
+
+guint8* diskReadData(guint64 addr,guint size){
+  // Check addr (cross 2 disk?)
+  if(addr+size<DISK_SIZE)// in first
+    // TODO : check new disk and dont read from theme
+    return mirrorRead(0,addr,size);
+
+  else if(addr<DISK_SIZE){ // cross 2 disk
+    guint64 addr0,addr1;
+    guint size0,size1;
+    guint8 *data0,*data1;
+
+    //0
+    size0=DISK_SIZE-addr;
+    addr0=addr;
+    data0=mirrorRead(0,addr0,size0);
+    //1
+    size1=size-size0;
+    addr1=17; // 0-15 size,16 mode
+    data1=mirrorRead(1,addr1,size1);
+
+    // merge 2 data
+    guint8* data=(guint8*) malloc(size*sizeof(guint));
+    memmove(data,data0,size0);
+    memmove(data+size0,data1,size1);
+
+
+  }else if(diskMode==10){ // in second and diskMode=10
+    addr=addr-DISK_SIZE+17
+    return mirrorRead(1,addr,size);
+  }
+  return NULL;
+}
+
+
 //-----------
 
 //-----------
