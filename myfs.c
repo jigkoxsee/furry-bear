@@ -54,7 +54,7 @@ struct FMAP{
 };
 typedef struct FMAP FMAP;
 
-guint8* readFileN(char * fileName,guint offset,guint size){
+guint8* FileReadN(char * fileName,guint offset,guint size){
   FILE* fileptr;
   guint8* buffer;
 
@@ -69,9 +69,9 @@ guint8* readFileN(char * fileName,guint offset,guint size){
 }
 
 // TODO : Read entire file by stream (avoid allocate large memory"
-char * readFile(char * fileName){
+guint8 * FileRead(char * fileName){
   FILE * fileptr;
-  char * buffer;
+  guint8 * buffer;
   guint64 filelen;
 
   fileptr = fopen(fileName,"rb");  // Open file in binary
@@ -81,7 +81,7 @@ char * readFile(char * fileName){
 
   printf("filelen : %" G_GUINT64_FORMAT "\n",filelen);
 
-  buffer = (char *) malloc((filelen+1)*sizeof(char)); // Allocation memory for read file
+  buffer = (guint8 *) malloc((filelen)*sizeof(guint8)); // Allocation memory for read file
   // TODO : Avoid allocate ahead (allocate only need)
   fread(buffer,filelen,1,fileptr); // Read entire file // TODO what all this param?
   fclose(fileptr); // close file
@@ -143,7 +143,7 @@ gint64 FreeSpaceFind(guint realSize){
   // Calculate add Head too
   // atime,size,data
   guint64 fsSize=100000000; // TODO
-  guchar* buffer=readFileN(diskFileName[0],ADDR_FREE_SPACE_VECTOR,fsSize);
+  guchar* buffer=FileReadN(diskFileName[0],ADDR_FREE_SPACE_VECTOR,fsSize);
 
   // Search
   guint64 count=0;
@@ -275,7 +275,7 @@ guint BytesArrayToGuint(guchar* buffer){
 // TODO : FN-Increease fileCounter
 
 guint getFileCounter(){
-  guchar * buffer = readFileN(diskFileName[0],ADDR_FILE_COUNTER,4);
+  guchar * buffer = FileReadN(diskFileName[0],ADDR_FILE_COUNTER,4);
   return BytesArrayToGuint(buffer);
 }
 
@@ -501,11 +501,11 @@ gint finder(gpointer key, gpointer user_data) {
 void getFileMeta(guint addr,guint* size,guint *atime){
   guint8* buffer;
   if(atime!=NULL){
-    buffer=readFileN(diskFileName[0],addr,ATIME_SIZE);
+    buffer=FileReadN(diskFileName[0],addr,ATIME_SIZE);
     *atime=BytesArrayToGuint(buffer);
   }
   if(size!=NULL){
-    buffer=readFileN(diskFileName[0],addr+ATIME_SIZE,FILE_SIZE);
+    buffer=FileReadN(diskFileName[0],addr+ATIME_SIZE,FILE_SIZE);
     *size=BytesArrayToGuint(buffer);
   }
 }
@@ -528,7 +528,7 @@ void putFileDataToDisk(guint fileSize,const char* src,guint64 addrFile){
   // size
   diskWriteData(&fileSize,addrFile+ATIME_SIZE,FILE_SIZE);
   // data
-  guchar* data=readFileN((char*)src,0,fileSize);
+  guchar* data=FileReadN((char*)src,0,fileSize);
   diskWriteData((void*)data,addrFile+ATIME_SIZE+FILE_SIZE,fileSize);
   free(data);
 }
@@ -696,7 +696,7 @@ guint myGet(gchar *key,gchar *outpath){
     // writing
     // TODO : FN-DiskPrepare
     // TODO : FN-DiskReadN
-    guint8* buffer=readFileN(diskFileName[0],fileAddr+ATIME_SIZE+FILE_SIZE,fileSize);
+    guint8* buffer=FileReadN(diskFileName[0],fileAddr+ATIME_SIZE+FILE_SIZE,fileSize);
     // TODO : what fwrite do if data size is shorter than count(param3)
     
     if(fwrite(buffer,1/*byte*/,fileSize,fileOut)!=fileSize)
@@ -759,7 +759,8 @@ guint mySearch(gchar* key,gchar* outpath){
 
   GString *resCSV=g_string_new("");
   g_list_foreach(sData.result,listToStr,resCSV);
-  resCSV->str[resCSV->len-1]=0xA; // change last comman
+  //resCSV->str[resCSV->len-1]=0; // change last comman
+  g_string_truncate(resCSV,resCSV->len-1); // change last comman
   //printf("Result : %s\n",resCSV->str);
   
 
