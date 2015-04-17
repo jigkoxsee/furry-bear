@@ -113,16 +113,35 @@ void stripWrite(){
 
 }
 // Mirror
-void mirrorWrite(int no,void* data,guint64 addr,guint size){
-  editFile(diskFileName[no],data,addr,size);
+void mirrorWrite(int diskGroup,void* data,guint64 addr,guint size){
 
-  if(diskCount>1)
-  editFile(diskFileName[no+1],data,addr,size);
-  // TODO : TMP Mirror 4disk
-  if(diskCount>2)
-    editFile(diskFileName[no+2],data,addr,size);
-  if(diskCount>3)
-    editFile(diskFileName[no+3],data,addr,size);
+  if(diskGroup==0){ // first
+    if(newDisk[0]==FALSE){
+      editFile(diskFileName[0],data,addr,size);
+    }else{
+      printf("D0 is new\n");
+    }
+
+    if(newDisk[1]==FALSE){
+      editFile(diskFileName[1],data,addr,size);
+    }else{
+      printf("D1 is new\n");
+    }
+  }
+  if(diskGroup==1){ // second
+    if(newDisk[2]==FALSE){
+      editFile(diskFileName[2],data,addr,size);
+    }else{
+      printf("D2 is new\n");
+    }
+
+    if(newDisk[3]==FALSE){
+      editFile(diskFileName[3],data,addr,size);
+    }else{
+      printf("D3 is new\n");
+    }
+  }
+  
 }
 
 void diskWriteData(void* data,guint64 addr,guint size){
@@ -155,8 +174,6 @@ void diskWriteData(void* data,guint64 addr,guint size){
     addr=addr-DISK_SIZE+17;
     mirrorWrite(1,data,addr,size);
   }
-
-
 
 }
 
@@ -222,7 +239,7 @@ guint8* diskReadData(guint64 addr,guint size){
 
 
   }else if(diskMode==10){ // in second and diskMode=10
-    addr=addr-DISK_SIZE+17
+    addr=addr-DISK_SIZE+17;
     return mirrorRead(1,addr,size);
   }
   return NULL;
@@ -373,18 +390,16 @@ guint getFileCounter(){
   return BytesArrayToGuint(buffer);
 }
 
-// TODO : Initiate disk in a first time of use
-void formatDisk(FILE * diskFile,guint64 diskSize,int* mode){
+// Initiate disk in a first time of use
+void formatDisk(FILE * diskFile,guint64 diskSize,int mode){
   char header[17];
   sprintf(header,"%"G_GUINT64_FORMAT "",diskSize);
   int strSize=strlen(header);
   memmove(header+(16-strSize),header,strSize);
   memset(header,'0',16-strSize);
-  // TODO change byte 17 to RAID mode 1, 0
-  header[16]=(*mode);
-  printf("----%s----\n",header);
-  // TODO : for test purpose
-  //(diskName,header,0,17);
+  // change byte 17 to RAID mode 1, 0
+  header[16]=mode;
+  //printf("----%s----\n",header);
   fseek ( diskFile, 0, SEEK_SET );
   fwrite(header,1,17,diskFile);
 }
@@ -411,6 +426,9 @@ int checkFirstSection(FILE* diskFile, guint64 diskSize){
   return -1; // -1 - Didnt format yet
 }
 
+//--------UtilFN------
+
+//--------UtilFN------
 
 int mirrorNo=0;
 int stripNo=2;
@@ -433,9 +451,11 @@ int diskOrdering10(int* mode, char* _diskFileName){
   }else if((*mode)==-1){
   if(mirrorNo<=1){
         *mode=1;
+        diskFileName[mirrorNo]=_diskFileName;
         return mirrorNo++;
       }else{
         *mode=0;
+        diskFileName[stripNo]=_diskFileName;
         return stripNo++;
       }
   }else{ // if have disk in mirror/strip mode more than 2 disk
@@ -451,6 +471,12 @@ void diskOrdering(FILE * diskFile[],guint64 diskSize,char* diskName[]){
   {
     int mode,modeInFile,orderNum;
     modeInFile=checkFirstSection(diskFile[i],diskSize);
+    printf("modeInFile %d\n", modeInFile);
+    // if modeInFile== {2,3} mode 0/1 when data not sync(newdisk)
+    if(modeInFile>1)
+      modeInFile=-1; //{2,3} => -1
+    // for now do nothing
+
     mode=modeInFile;
     printf("mode : %d\n",mode);
 
@@ -464,8 +490,21 @@ void diskOrdering(FILE * diskFile[],guint64 diskSize,char* diskName[]){
     newDisk[orderNum]=FALSE;
     if (modeInFile<0){
       printf("Initiate new disk\n");
+      // 3 for mode 1 newDisk,2 for mode 0 newDisk (not sync)
+      // mode = {0,1} ==> mode+2 = {2,3}
       newDisk[orderNum]=TRUE;
-      formatDisk(diskFile[i],diskSize,&mode);
+      if(orderNum==1||orderNum==3){ //0,1 2,3
+        if(newDisk[orderNum-1]==newDisk[orderNum]){ //0,1 2,3
+          newDisk[orderNum-1]=FALSE;
+          newDisk[orderNum]=FALSE;
+        }else{
+          printf("-------------OldNewFound\n");
+          mode+=2;   // mode = {2,3}
+        }
+      }
+      printf("NewDisk D%d mode %d (%d)\n", i,mode%2,mode);
+      // TODO formatDisk
+      formatDisk(diskFile[i],diskSize,mode);
     }
     fclose(diskFile[i]);
   }
