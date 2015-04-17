@@ -19,22 +19,26 @@ extern GList* fileMapHole;
 
 guint64 DISK_SIZE;
 
+const guint HEADER_SIZE=17; // disk size (16B) + mode (1B)
 
-const guint ADDR_FILE_COUNTER=17; // 4B
-const guint ADDR_FREE_SPACE_VECTOR=21; // 1/8 B
+
+const guint64 ADDR_FILE_COUNTER=17; // 4B
+const guint64 ADDR_FREE_SPACE_VECTOR=21; // 1/8 B
 const guint KEY_SIZE=8;
 const guint FPTR_SIZE=8;
 const guint ATIME_SIZE=4;
 const guint FILE_SIZE=4;
 // TODO : Need function to calculate this.
-guint ADDR_FILE_MAP=121000000; // 12B*N
+guint64 ADDR_FILE_MAP=100000021; // 12B*N
 // Name = 8B
 // fPTR = 8B
 
 // TODO : function to set this value
-guint ADDR_DATA=200000000; // 16B+X
+guint64 ADDR_DATA=200000000; // 16B+X
 // Atime = 4B
 // Size = 4B
+guint64 FS_SIZE=100000000; // TODO
+guint64 MAX_FILE=1000001; // TODO
 
 //guint64 halfOffset;
 
@@ -107,11 +111,6 @@ void writeFile(char * filename,char * fileData){
 }
 //-----------
 
-// Mirror Read with from newDisk==FALSE
-
-void stripWrite(){
-
-}
 // Mirror
 void mirrorWrite(int diskGroup,void* data,guint64 addr,guint size){
 
@@ -164,14 +163,14 @@ void diskWriteData(void* data,guint64 addr,guint size){
 
     // 1
     size1=size-size0;
-    addr1=17;
+    addr1=HEADER_SIZE;
     data1=data+size0;
     mirrorWrite(1,data1,addr1,size1);
 
   }
   // second
   else{
-    addr=addr-DISK_SIZE+17;
+    addr=addr-DISK_SIZE+HEADER_SIZE;
     mirrorWrite(1,data,addr,size);
   }
 
@@ -229,17 +228,38 @@ guint8* diskReadData(guint64 addr,guint size){
     data0=mirrorRead(0,addr0,size0);
     //1
     size1=size-size0;
-    addr1=17; // 0-15 size,16 mode
+    addr1=HEADER_SIZE; // 0-15 size,16 mode
     data1=mirrorRead(1,addr1,size1);
 
     // merge 2 data
-    guint8* data=(guint8*) malloc(size*sizeof(guint));
+    guint8* data=(guint8*) malloc(size*sizeof(guint8));
+
+    //printf("data %d\n", data);
     memmove(data,data0,size0);
+    //printf("data+size0 %d\n", data+size0);
     memmove(data+size0,data1,size1);
+/*
+    printf("data %x\n", data[0]);
+    printf("data %x\n", data[1]);
+    printf("data %x\n", data[2]);
+    printf("data %x\n", data[3]);
+    printf("data %x\n", data[4]);
+    printf("data %x\n", data[5]);
+*/
+
+    // for test
+
+    /*
+    FILE * writeptr;
+    writeptr = fopen(filename,"wb");
+    fwrite(data,1,size,writeptr);
+    fclose(writeptr);
+    */
+    return data;
 
 
   }else if(diskMode==10){ // in second and diskMode=10
-    addr=addr-DISK_SIZE+17;
+    addr=addr-DISK_SIZE+HEADER_SIZE;
     return mirrorRead(1,addr,size);
   }
   return NULL;
@@ -253,14 +273,13 @@ guint8* diskReadData(guint64 addr,guint size){
 gint64 FreeSpaceFind(guint realSize){
   // Calculate add Head too
   // atime,size,data
-  guint64 fsSize=100000000; // TODO
-  guchar* buffer=FileReadN(diskFileName[0],ADDR_FREE_SPACE_VECTOR,fsSize);
+  guchar* buffer=FileReadN(diskFileName[0],ADDR_FREE_SPACE_VECTOR,FS_SIZE);
 
   // Search
   guint64 count=0;
   guint64 start;
   guint64 i;
-  for(i=0;i<fsSize;i++){
+  for(i=0;i<FS_SIZE;i++){
     if(count==0){
       start=i;
     }
@@ -273,8 +292,8 @@ gint64 FreeSpaceFind(guint realSize){
       count=0;
     }
     // no free space enough
-    if(i==fsSize-1){
-      printf("Error Not enough space");
+    if(i==FS_SIZE-1){
+      printf("Error Not enough space (%"G_GUINT64_FORMAT")",ADDR_FREE_SPACE_VECTOR+FS_SIZE-1);
       return -1;
     }
   }
@@ -339,7 +358,7 @@ void FMapAdd(const gchar *key,guint64 fptr){
   strncpy(newKey,key,8);
   newKey[8]=0;
   
-  printf("NK : %s\n",newKey);
+  printf("NewKey : %s\n",newKey);
 
   fileCounter++;
   g_tree_insert(fileMap, newKey, fm);
@@ -392,16 +411,16 @@ guint getFileCounter(){
 
 // Initiate disk in a first time of use
 void formatDisk(FILE * diskFile,guint64 diskSize,int mode){
-  char header[17];
+  char header[HEADER_SIZE];
   sprintf(header,"%"G_GUINT64_FORMAT "",diskSize);
   int strSize=strlen(header);
-  memmove(header+(16-strSize),header,strSize);
-  memset(header,'0',16-strSize);
+  memmove(header+(HEADER_SIZE-1-strSize),header,strSize);
+  memset(header,'0',HEADER_SIZE-1-strSize);
   // change byte 17 to RAID mode 1, 0
   header[16]=mode;
   //printf("----%s----\n",header);
   fseek ( diskFile, 0, SEEK_SET );
-  fwrite(header,1,17,diskFile);
+  fwrite(header,1,HEADER_SIZE,diskFile);
 }
 
 
@@ -436,6 +455,7 @@ int stripNo=2;
 // 2 disk
 int diskOrdering1(int* mode, char* _diskFileName){
   *mode=1;
+  diskFileName[mirrorNo]=_diskFileName;
   return mirrorNo++;
 }
 
@@ -510,6 +530,53 @@ void diskOrdering(FILE * diskFile[],guint64 diskSize,char* diskName[]){
   }
 }
 
+void calculateDiskAddr(){
+  //if(DISK_SIZE!=1073741824){ // 1G=1073741824
+  { // 1G=1073741824
+    // mode 1
+    // mode 0
+    printf("--------------------------\n");
+
+    guint64 addr=0;
+    guint64 maxDiskSize=DISK_SIZE;
+    if(diskMode==10)
+      maxDiskSize = DISK_SIZE*2;
+    printf("maxDiskSize %"G_GUINT64_FORMAT"\n",maxDiskSize);
+    guint64 maxHeaderBytes= maxDiskSize*0.2;// 20%
+    printf("maxHeaderBytes %"G_GUINT64_FORMAT"\n",maxHeaderBytes);
+    guint64 maxDataBytes= maxDiskSize-maxHeaderBytes;// 20%
+    printf("maxDataBytes %"G_GUINT64_FORMAT"\n",maxDataBytes);
+
+    // Header+Mode 17 Bytes
+    addr+=HEADER_SIZE; // 17+
+
+    // FileCounter 4 Bytes
+    addr+=4;
+
+    // Free Space management
+    // addr = 0+17+4 = 21;
+    printf("FreeSpaceMNG ADDR %"G_GUINT64_FORMAT"\n",ADDR_FREE_SPACE_VECTOR);
+    FS_SIZE= maxDataBytes/8; //100000000; // TODO
+    printf("FreeSpaceMNG Size %"G_GUINT64_FORMAT"\n",FS_SIZE);
+    addr+=FS_SIZE;
+    printf("FreeSpaceMNG End %"G_GUINT64_FORMAT"\n",addr);
+
+    // 1 FileMap = 8B+8B
+    ADDR_FILE_MAP = addr; //100000021; // 16B*N
+    printf("FileMap ADDR %"G_GUINT64_FORMAT"\n",ADDR_FILE_MAP);
+
+    MAX_FILE = (maxHeaderBytes-ADDR_FILE_MAP)/(KEY_SIZE+FPTR_SIZE) -1;
+    printf("FileMap Max file %"G_GUINT64_FORMAT"\n",MAX_FILE);
+    printf("FileMap End %"G_GUINT64_FORMAT"\n",MAX_FILE);
+
+    ADDR_DATA=addr+MAX_FILE; // 4B+4B+X
+    printf("Data ADDR %"G_GUINT64_FORMAT"\n",ADDR_DATA);
+    printf("Data End %"G_GUINT64_FORMAT"\n",ADDR_DATA+maxDataBytes);
+
+    printf("--------------------------\n");
+  }
+}
+
 void checkDisk(char* diskArg[]){
   int i;
   guint64 diskSize[diskCount];
@@ -545,6 +612,7 @@ void checkDisk(char* diskArg[]){
   diskOrdering(diskFile,diskSize[0],diskFileNameTmp);
 
   // Calculate ADDR
+  calculateDiskAddr();
 
 
 }
@@ -700,6 +768,10 @@ guint myPut(gchar *key,gchar *src){
   if(strlen(key)!=8){
     return ENAMETOOLONG;
   }
+  if(fileCounter==MAX_FILE){ // eg.1,000,000 (for 1GB)
+    printf("Max file number allow (%"G_GUINT64_FORMAT")\n", MAX_FILE);
+    return ENOSPC;
+  }
 
   // Get file size
   FILE *filePTR;
@@ -829,7 +901,9 @@ guint myGet(gchar *key,gchar *outpath){
     // writing
     // TODO : FN-DiskPrepare
     // TODO : FN-DiskReadN
-    guint8* buffer=FileReadN(diskFileName[0],fileAddr+ATIME_SIZE+FILE_SIZE,fileSize);
+    guint8* buffer=diskReadData(fileAddr+ATIME_SIZE+FILE_SIZE,fileSize);
+
+    //guint8* buffer=FileReadN(diskFileName[0],fileAddr+ATIME_SIZE+FILE_SIZE,fileSize);
     // TODO : what fwrite do if data size is shorter than count(param3)
     
     if(fwrite(buffer,1/*byte*/,fileSize,fileOut)!=fileSize)

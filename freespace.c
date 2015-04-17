@@ -1,28 +1,6 @@
 #ifndef FREESPACE_C
 #define FREESPACE_C
 
-#include <stdio.h>
-#include <glib.h>
-#include "mydisk.c"
-#include "myfs.c"
-
-extern char * diskFileName[4];
-extern FILE * diskFile[4];
-extern int diskCount;
-extern guint64 diskSize;
-extern int diskMode;
-extern guint fileCounter;
-extern GTree* fileMap;
-extern GList* fileMapHole;
-
-extern const guint ADDR_FREE_SPACE_VECTOR;
-extern const guint ADDR_FILE_COUNTER;
-extern guint ADDR_FILE_MAP;
-extern guint ADDR_DATA;
-extern const guint KEY_SIZE;
-extern const guint ATIME_SIZE;
-extern const guint SIZE_SIZE;
-
 
 /*// Find first space with fit a specific size
 gint64 FreeSpaceFind(guint realSize){

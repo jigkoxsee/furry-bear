@@ -6,10 +6,6 @@
 #include "myfile.c"
 
 
-extern char * diskFileName[4];
-extern FILE * diskFile[4];
-extern int diskCount;
-extern guint64 diskSize;
 extern int diskMode;
 
  // 1GB

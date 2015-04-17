@@ -156,7 +156,9 @@ int main (int argc,char* argv[])
   if(argc<2){
     printf("Error, Need atleast 1 disk\n");
     return 1;
-  }else if(argc<=5){
+  }else if(argc<=3){
+    diskMode=1;    
+  }else if(argc>3){
     diskMode=10;
   }else{
     printf("Error, Unsupport more than 4 disks\n");
