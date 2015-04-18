@@ -213,10 +213,11 @@ guint8* mirrorRead(int diskGroup,guint64 addr,guint size){
 
 guint8* diskReadData(guint64 addr,guint size){
   // Check addr (cross 2 disk?)
-  if(addr+size<DISK_SIZE)// in first
+  if(addr+size<DISK_SIZE){// in first
+    printf("Read @%"G_GUINT64_FORMAT" (%u)\n",addr,size);
     // TODO : check new disk and dont read from theme
     return mirrorRead(0,addr,size);
-
+  }
   else if(addr<DISK_SIZE){ // cross 2 disk
     guint64 addr0,addr1;
     guint size0,size1;
@@ -225,10 +226,12 @@ guint8* diskReadData(guint64 addr,guint size){
     //0
     size0=DISK_SIZE-addr;
     addr0=addr;
+    printf("Read 0@%"G_GUINT64_FORMAT" (%u)\n",addr0,size0);
     data0=mirrorRead(0,addr0,size0);
     //1
     size1=size-size0;
     addr1=HEADER_SIZE; // 0-15 size,16 mode
+    printf("Read 1@%"G_GUINT64_FORMAT" (%u)\n",addr1,size1);
     data1=mirrorRead(1,addr1,size1);
 
     // merge 2 data
@@ -242,6 +245,7 @@ guint8* diskReadData(guint64 addr,guint size){
 
   }else if(diskMode==10){ // in second and diskMode=10
     addr=addr-DISK_SIZE+HEADER_SIZE;
+    printf("Read @%"G_GUINT64_FORMAT" (%u)\n",addr,size);
     return mirrorRead(1,addr,size);
   }
   return NULL;
@@ -255,7 +259,7 @@ guint8* diskReadData(guint64 addr,guint size){
 gint64 FreeSpaceFind(guint realSize){
   // Calculate add Head too
   // atime,size,data
-  guchar* buffer=FileReadN(diskFileName[0],ADDR_FREE_SPACE_VECTOR,FS_SIZE);
+  guchar* buffer=diskReadData(ADDR_FREE_SPACE_VECTOR,FS_SIZE);
 
   // Search
   guint64 count=0;
@@ -273,14 +277,15 @@ gint64 FreeSpaceFind(guint realSize){
         break;
       }
     }else{
+      //printf("FS find reset @%"G_GUINT64_FORMAT"\n",ADDR_FREE_SPACE_VECTOR+i);
       count=0;
-      start=i;
-      printf("FS find reset @"G_GUINT64_FORMAT"\n"+ADDR_FREE_SPACE_VECTOR);
+      start=i+1;
     }
   }
   // no free space enough
   if(i==FS_SIZE){
-    printf("Error Not enough space (%"G_GUINT64_FORMAT")",ADDR_FREE_SPACE_VECTOR+FS_SIZE-1);
+    printf("Error Not enough space (%"G_GUINT64_FORMAT")\n",
+      ADDR_FREE_SPACE_VECTOR+FS_SIZE-1);
     return -1;
   }
 
@@ -333,9 +338,9 @@ void FMapAdd(const gchar *key,guint64 fptr){
   }
   // Insert to map=8B+4B
   // key
-  diskWriteData((void*)key,ADDR_FILE_MAP+(fmAddr*12),KEY_SIZE);
+  diskWriteData((void*)key,ADDR_FILE_MAP+(fmAddr*(KEY_SIZE+FPTR_SIZE)),KEY_SIZE);
   // fptr
-  diskWriteData(&fptr,ADDR_FILE_MAP+(fmAddr*12)+KEY_SIZE,FPTR_SIZE);
+  diskWriteData(&fptr,ADDR_FILE_MAP+(fmAddr*(KEY_SIZE+FPTR_SIZE))+KEY_SIZE,FPTR_SIZE);
 
   FMAP* fm = (FMAP*) malloc(sizeof(FMAP));
   fm->fileNo=fmAddr;
@@ -363,7 +368,7 @@ void FMapRemove(const gchar *key,guint fileNo){
   diskWriteData(&fileCounter,ADDR_FILE_COUNTER,FILE_SIZE);
 
   // in disk
-  guint64 fileMapAddr=ADDR_FILE_MAP+(fileNo)*12;
+  guint64 fileMapAddr=ADDR_FILE_MAP+(fileNo)*(KEY_SIZE+FPTR_SIZE);
   guint8* blank[KEY_SIZE+FILE_SIZE];
   int i;
   for (i = 0; i < (KEY_SIZE+FILE_SIZE); ++i)
@@ -392,8 +397,10 @@ guint BytesArrayToGuint(guchar* buffer){
 // TODO : FN-Increease fileCounter
 
 guint getFileCounter(){
-  guchar * buffer = FileReadN(diskFileName[0],ADDR_FILE_COUNTER,4);
-  return BytesArrayToGuint(buffer);
+  guchar * buffer = diskReadData(ADDR_FILE_COUNTER,4);
+  guint fc=BytesArrayToGuint(buffer);
+  free(buffer);
+  return fc;
 }
 
 // Initiate disk in a first time of use
@@ -618,7 +625,7 @@ gboolean iter_all(gpointer key, gpointer value, gpointer data) {
 }
 
 void listPrint(gpointer data,gpointer user_data){
-  printf("List : %"G_GUINT64_FORMAT"\n",*(guint64*)data);
+  printf("Hole List : %"G_GUINT64_FORMAT"\n",*(guint64*)data);
 }
 
 void FMapLoad(){
@@ -671,11 +678,11 @@ void FMapLoad(){
     //printf("\n");
   }
   fclose(disk0);
-  printf("\n Found %u hole\n",fileCounterRange-fileCounter);
+  printf("\nFound %u hole\n",fileCounterRange-fileCounter);
   fileMapHole=g_list_reverse(fileMapHole);
   g_list_foreach(fileMapHole,listPrint,NULL); // func(pointer data,pointer userdata)
 
-  //g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
+  g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
   printf("Load file map finish\n");
 }
 
@@ -689,13 +696,16 @@ gint finder(gpointer key, gpointer user_data) {
 void getFileMeta(guint addr,guint* size,guint *atime){
   guint8* buffer;
   if(atime!=NULL){
-    buffer=FileReadN(diskFileName[0],addr,ATIME_SIZE);
+    buffer=diskReadData(addr,ATIME_SIZE);
     *atime=BytesArrayToGuint(buffer);
+    free(buffer);
   }
   if(size!=NULL){
-    buffer=FileReadN(diskFileName[0],addr+ATIME_SIZE,FILE_SIZE);
+    buffer=diskReadData(addr+ATIME_SIZE,FILE_SIZE);
     *size=BytesArrayToGuint(buffer);
+    free(buffer);
   }
+
 }
 
 /*
@@ -743,7 +753,7 @@ guint replaceKeyWithNewDataSize(const gchar *key,guint realBlockSize,
   // Change file map - fptr
   fileMeta->fptr=addrFile;
   g_tree_replace (fileMap,(gchar*)key,fileMeta);
-  diskWriteData(&addrFile,(guint64)ADDR_FILE_MAP+(fileMeta->fileNo*12)
+  diskWriteData(&addrFile,(guint64)ADDR_FILE_MAP+(fileMeta->fileNo*(KEY_SIZE+FPTR_SIZE))
       +KEY_SIZE,4);
 
   return 0;
@@ -897,16 +907,14 @@ guint myGet(gchar *key,gchar *outpath){
     free(buffer);
     
     fclose(fileOut);
-    // TODO : FN-DiskClose
 
     // TODO - return ENOSPC if "real" disk free space not enough
     // (work?) if fwrite return!=count return ENOSPC
-
-  }else{
-    // File (key) not found
-    return ENOENT;
+    return 0;
   }
-  return 0;
+
+  // File (key) not found
+  return ENOENT;
 }
 
 gboolean iterAllPrefixMatch(gpointer key, gpointer value, gpointer data) {
