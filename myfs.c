@@ -651,7 +651,7 @@ void FMapLoad(){
     fread(key,KEY_SIZE,1,disk0);
     key[8]=0;
     //printf("%s\t",key);
-    fread(&(fm->fptr),FILE_SIZE,1,disk0);
+    fread(&(fm->fptr),FPTR_SIZE,1,disk0);
     //printf("%d\t",fm->fptr);
     fm->fileNo=i;
 
@@ -717,24 +717,9 @@ void putFileDataToDisk(guint fileSize,const char* src,guint64 addrFile){
   diskWriteData(&fileSize,addrFile+ATIME_SIZE,FILE_SIZE);
   // data
   guchar* data;
-  if(fileSize>(guint)268435456){ // 256MB = 268435456
-
-    guint64 conAddr=addrFile+ATIME_SIZE+FILE_SIZE;
-    guint sizePerRound=268435456;
-
-    int i,iter=fileSize/(268435456);
-    for (i = 0; i < iter; ++i)
-    {
-      data=FileReadN((char*)src,0,sizePerRound);
-      diskWriteData((void*)data,conAddr,sizePerRound);
-      free(data);
-      conAddr+=sizePerRound;
-    }
-  }else{
-    data=FileReadN((char*)src,0,fileSize);
-    diskWriteData((void*)data,addrFile+ATIME_SIZE+FILE_SIZE,fileSize);
-    free(data);
-  }
+  data=FileReadN((char*)src,0,fileSize);
+  diskWriteData((void*)data,addrFile+ATIME_SIZE+FILE_SIZE,fileSize);
+  free(data);
 }
 
 guint replaceKeyWithNewDataSize(const gchar *key,guint realBlockSize,
@@ -824,9 +809,9 @@ guint myPut(gchar *key,gchar *src){
   // Insert file data=atime,size,data
   putFileDataToDisk(fileSize,src,addrFile);
 
+  // mark
+  FreeSpaceMark(realBlockSize,freeOffset);
   if(replaceMode==0){ // if replace dont add new file map
-    // mark
-    FreeSpaceMark(realBlockSize,freeOffset);
     // Insert map
     FMapAdd(key,addrFile);
   }
@@ -903,36 +888,13 @@ guint myGet(gchar *key,gchar *outpath){
 
     // writing
     guint8* buffer;
-    guint writedSize=0;
 
-    if(fileSize>(guint)(268435456)){ // 256MB = 268435456
-
-      guint64 conAddr=fileAddr+ATIME_SIZE+FILE_SIZE;
-      guint sizePerRound=268435456;
-      guint readSize=0;
-
-      int i,iter=fileSize/(268435456);
-      for (i = 0; i < iter; ++i)
-      {
-        if(fileSize-readSize<sizePerRound){
-          sizePerRound=fileSize-readSize;
-        }
-        buffer=diskReadData(conAddr,sizePerRound);
-        writedSize+=fwrite(buffer,1/*byte*/,sizePerRound,fileOut);
-        free(buffer);
-        conAddr+=sizePerRound;
-        readSize+=sizePerRound;
-      }
-    }else{
-      buffer=diskReadData(fileAddr+ATIME_SIZE+FILE_SIZE,fileSize);
-      if(fwrite(buffer,1/*byte*/,fileSize,fileOut)!=fileSize){
-        free(buffer);
-        return ENOSPC;
-      }
+    buffer=diskReadData(fileAddr+ATIME_SIZE+FILE_SIZE,fileSize);
+    if(fwrite(buffer,1/*byte*/,fileSize,fileOut)!=fileSize){
       free(buffer);
+      return ENOSPC;
     }
-
-    
+    free(buffer);
     
     fclose(fileOut);
     // TODO : FN-DiskClose
