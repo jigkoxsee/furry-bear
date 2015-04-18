@@ -15,7 +15,7 @@ extern int diskCount;
 extern int diskMode;
 extern guint fileCounter;
 extern GTree* fileMap;
-extern GList* fileMapHole;
+extern GQueue* FMHoleQ;
 
 guint64 DISK_SIZE;
 
@@ -329,21 +329,19 @@ void FreeSpaceUnmark(guint realSize,guint64 addrFile){
 // TODO : if fileCounter need to pass
 void FMapAdd(const gchar *key,guint64 fptr){
   // if it has hole insert in hole first
-  GList* hole;
-  guint64 fmAddr=fileCounter;
-  hole=g_list_first(fileMapHole);
-  if(hole){// Have hole
-    fmAddr=*((guint64*)hole->data);
-    fileMapHole=g_list_remove(fileMapHole,hole);
+  guint fmNo=fileCounter;
+  
+  if(g_queue_get_length(FMHoleQ)>0){// Have hole
+    fmNo=*((guint64*)g_queue_pop_head(FMHoleQ));
   }
   // Insert to map=8B+4B
   // key
-  diskWriteData((void*)key,ADDR_FILE_MAP+(fmAddr*(KEY_SIZE+FPTR_SIZE)),KEY_SIZE);
+  diskWriteData((void*)key,ADDR_FILE_MAP+(fmNo*(KEY_SIZE+FPTR_SIZE)),KEY_SIZE);
   // fptr
-  diskWriteData(&fptr,ADDR_FILE_MAP+(fmAddr*(KEY_SIZE+FPTR_SIZE))+KEY_SIZE,FPTR_SIZE);
+  diskWriteData(&fptr,ADDR_FILE_MAP+(fmNo*(KEY_SIZE+FPTR_SIZE))+KEY_SIZE,FPTR_SIZE);
 
   FMAP* fm = (FMAP*) malloc(sizeof(FMAP));
-  fm->fileNo=fmAddr;
+  fm->fileNo=fmNo;
   fm->fptr=fptr;
   gchar* newKey;
   newKey = (gchar*) malloc((KEY_SIZE+1)*sizeof(gchar));
@@ -379,7 +377,7 @@ void FMapRemove(const gchar *key,guint fileNo){
   // TODO : add hole to fileMapHole
   guint64* fmHole=(guint64*) malloc(sizeof(guint64));
   *fmHole=fileNo;
-  fileMapHole=g_list_prepend(fileMapHole,fmHole);
+  g_queue_push_tail(FMHoleQ,fmHole);
 
 }
 
@@ -634,7 +632,7 @@ void FMapLoad(){
   fseek(disk0,ADDR_FILE_MAP,SEEK_SET);
 
   fileMap= g_tree_new((GCompareFunc)g_ascii_strcasecmp);
-  fileMapHole=NULL;
+  FMHoleQ=g_queue_new();
 
   FMAP* fm;
   gchar* key;
@@ -667,7 +665,7 @@ void FMapLoad(){
       // Add to freeFileMapHole
       fmHole=(guint64*) malloc(sizeof(guint64));
       *fmHole=i;
-      fileMapHole=g_list_prepend(fileMapHole,fmHole);
+      g_queue_push_tail(FMHoleQ,fmHole);
       printf("FM hole found\n");
       // increase max read range
       fileCounterRange++;
@@ -679,8 +677,7 @@ void FMapLoad(){
   }
   fclose(disk0);
   printf("\nFound %u hole\n",fileCounterRange-fileCounter);
-  fileMapHole=g_list_reverse(fileMapHole);
-  g_list_foreach(fileMapHole,listPrint,NULL); // func(pointer data,pointer userdata)
+  g_queue_foreach (FMHoleQ,listPrint,NULL);
 
   g_tree_foreach(fileMap, (GTraverseFunc)iter_all, NULL);
   printf("Load file map finish\n");

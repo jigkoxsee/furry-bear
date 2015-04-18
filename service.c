@@ -34,7 +34,7 @@ int diskMode=1;
 int reDistributeMode=0;
 guint fileCounter;
 GTree* fileMap;
-GList* fileMapHole;
+GQueue* FMHoleQ;
 
 // TODO array of free file map hole in disk
 // Keep address of free hole
