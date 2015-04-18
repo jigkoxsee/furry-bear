@@ -3,9 +3,6 @@
 
 #include <stdio.h>
 #include <glib.h>
-#include "myfile.c"
-#include "mydisk.c"
-#include "freespace.c"
 
 char * diskFileNameTmp[4];
 extern gboolean newDisk[4];
