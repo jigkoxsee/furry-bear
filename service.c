@@ -50,12 +50,9 @@ static gboolean on_handle_get (
     GDBusMethodInvocation *invocation,
     const gchar *key,
     const gchar *outpath) {
-
+    printf("GET: %s TO %s\n",key,outpath); 
     /** Your Code for Get method here **/
-    guint err = 0;
-    /** End of Get method execution, returning values **/
-    printf("GET: %s TO %s\n",key,outpath);
-    myGet((gchar*)key,(gchar*)outpath);
+    guint err = myGet((gchar*)key,(gchar*)outpath);
 
     rfos_complete_get(object, invocation, err);
     return TRUE;
